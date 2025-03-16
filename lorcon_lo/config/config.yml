@@ -1,0 +1,54 @@
+dataset: "KITTI"
+pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses"
+relative_pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/relative_pose"
+scan_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/scan"
+calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib"
+preprocessed_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/preprocessed_data"
+data_seqs: "00,01,02,05,08,09"
+test_seqs: "04,06,07,10"
+fov_up: 3.0
+fov_down: -25.0
+
+# dataset: "Rellis-3D"
+# pose_folder: "data/Rellis-3D/pose"
+# relative_pose_folder: "data/Rellis-3D/relative_pose"
+# scan_folder: "data/Rellis-3D/scan"
+# calib_folder: "data/Rellis-3D/calib"
+# preprocessed_folder: "data/Rellis-3D/preprocessed_data"
+# data_seqs: "00,01,02,03,04"
+# test_seqs: "04"
+# fov_up: 22.5
+# fov_down: -22.5
+
+log_folder: "runs"
+cp_folder: "checkpoints"
+checkpoint_path: "checkpoint_kitti.pt"
+# checkpoint_path: "Rellis-3D/0000/cp-0500.pt"
+
+from_checkpoint: False # Set to True to train the model on checkpoints.
+is_same_dataset: True # For transfer learning to another dataset, set the value to False. Otherwise, set to True.
+
+proj_H: 64
+proj_W: 900
+max_range: 50
+
+image_width: 900
+image_height: 64
+
+batch_size: 16 # resize depending on your hardware spec
+epochs: 5
+
+checkpoint_epoch: 10
+log_epoch: 1
+
+num_workers: 24 # resize depending on your hardware spec
+
+rnn_size: 4
+
+cuda_visible_devices: "0,1" # about 15Gb GPU memory is necessary
+
+depth_name: "depth"
+normal_name: "normal"
+intensity_name: "intensity"
+dni_size: 5 # number of channels
+normal_size: 3 # number of channels

@@ -22,7 +22,7 @@ deepvo/__pycache__/params.cpython-38.pyc
 deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch5.pth
 __pycache__/models.cpython-38.pyc
 __pycache__/utils.cpython-38.pyc
-lorcon_lo/
+
 lorcon_lo/__pycache__/model.cpython-38.pyc
 lorcon_lo/preprocess/__pycache__/gen_data_utils.cpython-38.pyc
 lorcon_lo/runs/KITTI/0000/events.out.tfevents.1742136920.kavi-Prime-360.260842.0
