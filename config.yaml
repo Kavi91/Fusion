@@ -1,0 +1,77 @@
+# General settings
+dataset: "KITTI"
+device: "cuda:0"
+num_workers: 24
+cuda_visible_devices: "0,1"
+
+# Modality flags
+use_camera: False
+use_lidar: True
+use_fusion: False
+
+# DeepVO settings
+deepvo:
+  image_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences/"
+  pose_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
+  calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
+  timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
+  train_data_info_path: "datainfo/train_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
+  valid_data_info_path: "datainfo/valid_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
+  train_video: ["00", "01", "02", "05", "08", "09"]
+  valid_video: ["04", "06", "07", "10"]
+  resize_mode: "rescale"
+  img_h: 184
+  img_w: 608
+  img_means: [0.19007764876619865, 0.15170388157131237, 0.10659445665650864]
+  img_stds: [0.2610784009469139, 0.25729316928935814, 0.25163823815039915]
+  minus_point_5: True
+  seq_len: [3, 5]  # Will be averaged to 4 in the script
+  sample_times: 3
+  batch_size: 32
+  epochs: 5
+  rnn_hidden_size: 1000
+  conv_dropout: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5]
+  rnn_dropout_out: 0.5
+  rnn_dropout_between: 0
+  clip: 10
+  batch_norm: True
+  optim:
+    opt: "Adagrad"
+    lr: 0.0001
+  pin_mem: True
+  model_path: "models/deepvo_model_best.pth"
+
+# LoRCoN-LO settings
+lorcon_lo:
+  preprocessed_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/preprocessed_data/"
+  relative_pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/relative_pose/"
+  calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
+  timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
+  data_seqs: "00,01" #02,05,08,09,04,06,07,10"
+  test_seqs: "10"
+  batch_size: 24
+  epochs: 5
+  rnn_size: 2
+  image_width: 900
+  image_height: 64
+  depth_name: "depth"
+  intensity_name: "intensity"
+  normal_name: "normal"
+  dni_size: 5
+  normal_size: 3
+  log_epoch: 1
+  checkpoint_epoch: 10
+  from_checkpoint: False
+  is_same_dataset: True
+  log_folder: "runs"
+  cp_folder: "checkpoints"
+  checkpoint_path: "checkpoint.pth"
+  model_path: "models/lorcon_lo_model_best.pth"
+
+# Fusion settings
+fusion:
+  batch_size: 16
+  epochs: 10
+  model_path: "models/fusion_model_best.pth"
+  rnn_hidden_size: 1024
+  dropout: 0.3

@@ -1,0 +1,36 @@
+# Ignore all .pth files inside models/
+models/*.pth
+
+# Explicitly ignore specific model files
+models/models/deepvo_model_best.pth
+
+# Ignore everything inside wandb/ directory
+wandb/
+checkpoints/KITTI/
+runs/KITTI/
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_best.pth
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch2.pth
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch1.pth
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch3.pth
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch4.pth
+
+deepvo/__pycache__/
+deepvo/__pycache__/helper.cpython-38.pyc
+deepvo/__pycache__/data_helper.cpython-38.pyc
+deepvo/__pycache__/model.cpython-38.pyc
+deepvo/__pycache__/params.cpython-38.pyc
+deepvo/models/t000102050809_v04060710_im184x608_s5x7_b16_rnn1000_optAdagrad_lr0.0005.model_epoch5.pth
+__pycache__/models.cpython-38.pyc
+__pycache__/utils.cpython-38.pyc
+lorcon_lo/
+lorcon_lo/__pycache__/model.cpython-38.pyc
+lorcon_lo/preprocess/__pycache__/gen_data_utils.cpython-38.pyc
+lorcon_lo/runs/KITTI/0000/events.out.tfevents.1742136920.kavi-Prime-360.260842.0
+lorcon_lo/runs/KITTI/0001/events.out.tfevents.1742139687.kavi-Prime-360.268464.0
+lorcon_lo/runs/KITTI/0002/events.out.tfevents.1742151107.kavi-Prime-360.296883.0
+lorcon_lo/runs/KITTI/0003/events.out.tfevents.1742154112.kavi-Prime-360.320526.0
+lorcon_lo/runs/KITTI/0004/events.out.tfevents.1742154140.kavi-Prime-360.321371.0
+lorcon_lo/runs/KITTI/0005/events.out.tfevents.1742154227.kavi-Prime-360.322534.0
+lorcon_lo/utils/__pycache__/process_data.cpython-38.pyc
+lorcon_lo/utils/__pycache__/common.cpython-38.pyc
+lorcon_lo/utils/__pycache__/__init__.cpython-38.pyc
