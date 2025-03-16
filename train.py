@@ -283,7 +283,7 @@ def main():
         start_idx = 0
         end_idx = 0
         train_idx = np.array([], dtype=int)
-        test_idx = np.array([], dtype=int)
+        test_idx = np.array([], dtype=int)  # Initialized outside the loop
         for seq in data_seqs:
             end_idx += seq_sizes.get(seq, 0) - 1
             if seq in test_seqs:
@@ -294,7 +294,7 @@ def main():
                     print(f"Test sequence {seq}: start_idx={start_idx}, end_idx={end_idx}, rnn_size-1={rnn_size-1}, idx_range={idx_range}")
                     if len(idx_range) == 0:
                         print(f"Error: No valid indices generated for test sequence {seq}")
-                    test_idx = np.append(test_idx, idx_range)
+                    test_idx = np.append(test_idx, idx_range)  # Append to the outer test_idx
             else:
                 idx_range = np.arange(start_idx, end_idx - (rnn_size - 1), dtype=int)
                 print(f"Train sequence {seq}: start_idx={start_idx}, end_idx={end_idx}, rnn_size-1={rnn_size-1}, idx_range={idx_range}")
@@ -401,7 +401,7 @@ def main():
                         test_loss = 0
                         rmse_error_test = 0
                         rmse_t_error_test = 0
-                        rmse_r_error_test = 0
+                        rmse_r_error_test = 0  # Initialize rmse_r_error_test
                         t_i = 0
                         for t_i, t_data in enumerate(test_dataloader):
                             t_inputs, t_labels = t_data
