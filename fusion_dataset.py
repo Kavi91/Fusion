@@ -6,7 +6,7 @@ from torch.utils.data import Dataset
 from deepvo.data_helper import get_data_info, ImageSequenceDataset
 from lorcon_lo.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
 import transforms3d as t3d
-from utils import create_frame_mapping
+from Fusion_utils import create_frame_mapping
 
 class FusionDataset(Dataset):
     def __init__(self, deepvo_df, lorcon_data, config):

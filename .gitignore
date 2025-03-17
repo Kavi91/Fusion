@@ -34,3 +34,9 @@ lorcon_lo/runs/KITTI/0005/events.out.tfevents.1742154227.kavi-Prime-360.322534.0
 lorcon_lo/utils/__pycache__/process_data.cpython-38.pyc
 lorcon_lo/utils/__pycache__/common.cpython-38.pyc
 lorcon_lo/utils/__pycache__/__init__.cpython-38.pyc
+test_df.csv
+test_dump.txt
+
+results/
+runs/
+models/

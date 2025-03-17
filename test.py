@@ -1,17 +1,37 @@
-# FUSION/test.py
 import yaml
 import torch
 import numpy as np
+import time
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch.optim as optim
 import os
+import wandb
+import glob
 from deepvo.data_helper import get_data_info, ImageSequenceDataset
 from deepvo.helper import eulerAnglesToRotationMatrix
-from lorcon_lo.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
-from lorcon_lo.common import get_original_poses, save_poses
-from lorcon_lo.plot import plot_gt, plot_results
+from lorcon_lo.utils.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
+from lorcon_lo.utils.common import get_original_poses, save_poses
+from lorcon_lo.utils.plot_utils import plot_gt, plot_results
 from models import DeepVO, LoRCoNLO, WeightedLoss
+
+def compute_ate(gt_poses, pred_poses):
+    gt_poses = np.array(gt_poses)
+    pred_poses = np.array(pred_poses)
+    if gt_poses.shape != pred_poses.shape:
+        print(f"ATE Shape Mismatch: gt_poses {gt_poses.shape}, pred_poses {pred_poses.shape}")
+        return np.nan
+    return np.sqrt(np.mean(np.linalg.norm(gt_poses - pred_poses, axis=1) ** 2))
+
+def compute_rpe(gt_poses, pred_poses):
+    gt_poses = np.array(gt_poses)
+    pred_poses = np.array(pred_poses)
+    if gt_poses.shape != pred_poses.shape or gt_poses.shape[0] < 2:
+        print(f"RPE Shape Mismatch: gt_poses {gt_poses.shape}, pred_poses {pred_poses.shape}")
+        return np.nan
+    gt_rel = np.diff(gt_poses, axis=0)
+    pred_rel = np.diff(pred_poses, axis=0)
+    return np.sqrt(np.mean(np.linalg.norm(gt_rel - pred_rel, axis=1) ** 2))
 
 def main():
     with open("config.yaml", "r") as f:
@@ -22,6 +42,8 @@ def main():
 
     if config["use_camera"]:
         # DeepVO Testing (from deepvo/test.py)
+        wandb.init(project="Fusion", name="DeepVO-Testing-0", config=config["deepvo"])  # Initialize WandB for DeepVO testing
+
         use_cuda = torch.cuda.is_available()
         save_dir = 'result/'
         if not os.path.exists(save_dir):
@@ -106,7 +128,8 @@ def main():
 
                 print('len(answer): ', len(answer))
                 print('expect len: ', len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/*.png"))))
-                print('Predict use {} sec'.format(time.time() - st_t))
+                predict_time = time.time() - st_t
+                print('Predict use {} sec'.format(predict_time))
 
                 with open(f'{save_dir}/out_{test_video}.txt', 'w') as f:
                     for pose in answer:
@@ -125,10 +148,21 @@ def main():
                 print('Loss = ', loss)
                 print('=' * 50)
 
+                # Log metrics to WandB for DeepVO
+                wandb.log({
+                    f"deepvo/test_loss_{test_video}": loss,
+                    f"deepvo/predict_time_{test_video}": predict_time,
+                    f"deepvo/predicted_pose_length_{test_video}": len(answer),
+                    f"deepvo/expected_pose_length_{test_video}": len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/*.png")))
+                })
+
         fd.close()
+        wandb.finish()  # Close WandB session for DeepVO
 
     if config["use_lidar"]:
         # LoRCoN-LO Testing (from lorcon_lo/test.py)
+        wandb.init(project="Fusion", name="LoRCoNLO-Testing-0", config=config["lorcon_lo"])  # Initialize WandB for LoRCoN-LO testing
+
         cuda = torch.device('cuda')
         seq_sizes = {}
         batch_size = config["lorcon_lo"]["batch_size"]
@@ -153,7 +187,9 @@ def main():
         dni_size = config["lorcon_lo"]["dni_size"]
         normal_size = config["lorcon_lo"]["normal_size"]
 
-        checkpoint_path = os.path.join(cp_folder, config["lorcon_lo"]["model_path"])
+        # Use checkpoint_test_path for testing
+        checkpoint_test_path = config["lorcon_lo"]["checkpoint_test_path"]
+        checkpoint_path = os.path.join(cp_folder, dataset, checkpoint_test_path)
 
         seq_sizes = count_seq_sizes(preprocessed_folder, data_seqs, seq_sizes)
         Y_data = process_input_data(preprocessed_folder, relative_pose_folder, data_seqs, seq_sizes)
@@ -180,14 +216,29 @@ def main():
         Y_estimated_data = np.empty((0, 6), dtype=np.float64)
         test_data_loader_len = len(test_dataloader)
         test_loss = 0.0
+        rmse_error_test = 0.0
+        rmse_t_error_test = 0.0
+        rmse_r_error_test = 0.0
+        st_t = time.time()
+
         with torch.no_grad():
             for idx, data in tqdm(enumerate(test_dataloader), total=test_data_loader_len):
                 inputs, labels = data
-                inputs, labels = Variable(inputs.float().to(device)), Variable(labels.float().to(device))
+                inputs, labels = inputs.float().to(device), labels.float().to(device)
                 outputs = model(inputs)
                 Y_estimated_data = np.vstack((Y_estimated_data, outputs[:, -1, :].cpu().numpy()))
-                test_loss += WeightedLoss.RMSEError(outputs, labels).item()
-        print(f"Test loss is {test_loss / test_data_loader_len}")
+                test_loss += criterion(outputs, labels).item()
+                rmse_error_test += WeightedLoss.RMSEError(outputs, labels).item()
+                rmse_t_error_test += WeightedLoss.RMSEError(outputs[:, :, :3], labels[:, :, :3]).item()
+                rmse_r_error_test += WeightedLoss.RMSEError(outputs[:, :, 3:], labels[:, :, 3:]).item()
+
+        avg_test_loss = test_loss / test_data_loader_len
+        avg_rmse_error_test = rmse_error_test / test_data_loader_len
+        avg_rmse_t_error_test = rmse_t_error_test / test_data_loader_len
+        avg_rmse_r_error_test = rmse_r_error_test / test_data_loader_len
+        predict_time = time.time() - st_t
+
+        print(f"Test loss is {avg_test_loss}")
 
         Y_origin_data = get_original_poses(pose_folder, preprocessed_folder, data_seqs)
         seq_sizes = {}
@@ -196,6 +247,19 @@ def main():
         plot_gt(Y_origin_data, pose_folder, preprocessed_folder, data_seqs, seq_sizes, dataset=dataset)
         plot_results(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
         save_poses(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
+
+        # Log metrics to WandB for LoRCoNLO
+        wandb.log({
+            "lorcon_lo/test_loss": avg_test_loss,
+            "lorcon_lo/test_rmse": avg_rmse_error_test,
+            "lorcon_lo/test_rmse_t": avg_rmse_t_error_test,
+            "lorcon_lo/test_rmse_r": avg_rmse_r_error_test,
+            "lorcon_lo/predict_time": predict_time,
+            "lorcon_lo/test_data_length": len(Y_estimated_data),
+            "lorcon_lo/GPU_usage": torch.cuda.memory_allocated() / 1e9
+        })
+
+        wandb.finish()  # Close WandB session for LoRCoNLO
 
 if __name__ == "__main__":
     main()
