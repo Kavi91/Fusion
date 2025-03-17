@@ -13,7 +13,7 @@ import sys, os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'utils'))
 
 import model as model_util
-import plot
+from plot_utils import plot_gt,plot_results
 import process_data
 import common
 
@@ -86,7 +86,7 @@ if __name__ == "__main__":
     with torch.no_grad():
         for idx, data in tqdm(enumerate(test_dataloader)):
             inputs, labels = data
-            inputs, labels = Variable(inputs.float().to('cuda:1')), Variable(labels.float().to('cuda:1'))
+            inputs, labels = Variable(inputs.float().to('cuda:0')), Variable(labels.float().to('cuda:0'))
             outputs = model(inputs)
             Y_estimated_data = np.vstack((Y_estimated_data, outputs[:,-1,:].cpu().numpy()))
             test_loss += model_util.RMSEError(outputs, labels).item()
@@ -96,6 +96,6 @@ if __name__ == "__main__":
     seq_sizes = {}
     seq_sizes = process_data.count_seq_sizes(preprocessed_folder, data_seqs, seq_sizes)
     
-    plot.plot_gt(Y_origin_data, pose_folder, preprocessed_folder, data_seqs, seq_sizes, dataset=dataset)
-    plot.plot_results(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
+    plot_gt(Y_origin_data, pose_folder, preprocessed_folder, data_seqs, seq_sizes, dataset=dataset)
+    plot_results(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
     common.save_poses(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)

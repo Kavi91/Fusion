@@ -22,7 +22,7 @@ fov_down: -25.0
 
 log_folder: "runs"
 cp_folder: "checkpoints"
-checkpoint_path: "checkpoint_kitti.pt"
+checkpoint_path: "/home/kavi/Fusion/checkpoints/KITTI/0018/cp-0100.pt"
 # checkpoint_path: "Rellis-3D/0000/cp-0500.pt"
 
 from_checkpoint: False # Set to True to train the model on checkpoints.

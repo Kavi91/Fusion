@@ -240,6 +240,9 @@ def main():
 
     if config["use_lidar"]:
         # LoRCoN-LO Training (Matches lorcon_lo/train.py)
+        # Initialize WandB for LoRCoN-LO
+        wandb.init(project="Fusion", name="LoRCoNLO-Training-0", config=config["lorcon_lo"])
+
         seq_sizes = {}
         batch_size = config["lorcon_lo"]["batch_size"]
         num_workers = config["num_workers"]
@@ -359,7 +362,11 @@ def main():
         epochs = config["lorcon_lo"]["epochs"]
         log_epoch = config["lorcon_lo"]["log_epoch"]
         cp_epoch = config["lorcon_lo"]["checkpoint_epoch"]
+        total_train_time = 0  # Track total training time for ETA
+        start_time = time.time()
+
         for epoch in tqdm(range(start_epoch, epochs+1)):
+            epoch_start_time = time.time()
             model.train()
             criterion.train()
             running_loss = 0.0
@@ -379,12 +386,16 @@ def main():
                 rmse_t_error_train += WeightedLoss.RMSEError(outputs[:, :, :3], labels[:, :, :3]).item()
                 rmse_r_error_train += WeightedLoss.RMSEError(outputs[:, :, 3:], labels[:, :, 3:]).item()
             if epoch % log_epoch == 0:
+                avg_train_loss = running_loss / data_loader_len if data_loader_len > 0 else 0
+                avg_rmse_error_train = rmse_error_train / data_loader_len if data_loader_len > 0 else 0
+                avg_rmse_t_error_train = rmse_t_error_train / data_loader_len if data_loader_len > 0 else 0
+                avg_rmse_r_error_train = rmse_r_error_train / data_loader_len if data_loader_len > 0 else 0
                 print('[%d, %5d] training loss: %.10f' %
-                      (epoch + 1, i + 1, running_loss / data_loader_len if data_loader_len > 0 else 0))
-                writer.add_scalar('Loss/train', running_loss / data_loader_len if data_loader_len > 0 else 0, epoch)
-                writer.add_scalar('RMSE/train', rmse_error_train / data_loader_len if data_loader_len > 0 else 0, epoch)
-                writer.add_scalar('RMSE_t/train', rmse_t_error_train / data_loader_len if data_loader_len > 0 else 0, epoch)
-                writer.add_scalar('RMSE_r/train', rmse_r_error_train / data_loader_len if data_loader_len > 0 else 0, epoch)
+                      (epoch + 1, i + 1, avg_train_loss))
+                writer.add_scalar('Loss/train', avg_train_loss, epoch)
+                writer.add_scalar('RMSE/train', avg_rmse_error_train, epoch)
+                writer.add_scalar('RMSE_t/train', avg_rmse_t_error_train, epoch)
+                writer.add_scalar('RMSE_r/train', avg_rmse_r_error_train, epoch)
 
                 model.eval()
                 criterion.eval()
@@ -397,11 +408,15 @@ def main():
                                 print(f"Debug: Sequence {seq} has {seq_sizes[seq]} frames, should support validation")
                             else:
                                 print(f"Debug: Sequence {seq} has 0 frames in seq_sizes")
+                        test_loss = float('inf')
+                        rmse_error_test = 0
+                        rmse_t_error_test = 0
+                        rmse_r_error_test = 0
                     else:
                         test_loss = 0
                         rmse_error_test = 0
                         rmse_t_error_test = 0
-                        rmse_r_error_test = 0  # Initialize rmse_r_error_test
+                        rmse_r_error_test = 0
                         t_i = 0
                         for t_i, t_data in enumerate(test_dataloader):
                             t_inputs, t_labels = t_data
@@ -412,24 +427,51 @@ def main():
                             rmse_error_test += WeightedLoss.RMSEError(t_outputs, t_labels).item()
                             rmse_t_error_test += WeightedLoss.RMSEError(t_outputs[:, :, :3], t_labels[:, :, :3]).item()
                             rmse_r_error_test += WeightedLoss.RMSEError(t_outputs[:, :, 3:], t_labels[:, :, 3:]).item()
+                        avg_val_loss = test_loss / test_data_loader_len if test_data_loader_len > 0 else 0
+                        avg_rmse_error_test = rmse_error_test / test_data_loader_len if test_data_loader_len > 0 else 0
+                        avg_rmse_t_error_test = rmse_t_error_test / test_data_loader_len if test_data_loader_len > 0 else 0
+                        avg_rmse_r_error_test = rmse_r_error_test / test_data_loader_len if test_data_loader_len > 0 else 0
                         print('[%d, %5d] validation loss: %.10f' %
-                              (epoch + 1, t_i + 1, test_loss / test_data_loader_len if test_data_loader_len > 0 else 0))
-                        writer.add_scalar('Loss/val', test_loss / test_data_loader_len if test_data_loader_len > 0 else 0, epoch)
-                        writer.add_scalar('RMSE/val', rmse_error_test / test_data_loader_len if test_data_loader_len > 0 else 0, epoch)
-                        writer.add_scalar('RMSE_t/val', rmse_t_error_test / test_data_loader_len if test_data_loader_len > 0 else 0, epoch)
-                        writer.add_scalar('RMSE_r/val', rmse_r_error_test / test_data_loader_len if test_data_loader_len > 0 else 0, epoch)
+                              (epoch + 1, t_i + 1, avg_val_loss))
+                        writer.add_scalar('Loss/val', avg_val_loss, epoch)
+                        writer.add_scalar('RMSE/val', avg_rmse_error_test, epoch)
+                        writer.add_scalar('RMSE_t/val', avg_rmse_t_error_test, epoch)
+                        writer.add_scalar('RMSE_r/val', avg_rmse_r_error_test, epoch)
+
+                # Log metrics to WandB
+                epoch_duration = time.time() - epoch_start_time
+                total_train_time += epoch_duration
+                avg_epoch_time = total_train_time / (epoch + 1)
+                eta_seconds = avg_epoch_time * (config["lorcon_lo"]["epochs"] - epoch - 1)
+                eta_formatted = time.strftime("%H:%M:%S", time.gmtime(eta_seconds))
+
+                wandb.log({
+                    "train_loss": avg_train_loss,
+                    "val_loss": avg_val_loss,
+                    "rmse/train": avg_rmse_error_train,
+                    "rmse_t/train": avg_rmse_t_error_train,
+                    "rmse_r/train": avg_rmse_r_error_train,
+                    "rmse/val": avg_rmse_error_test,
+                    "rmse_t/val": avg_rmse_t_error_test,
+                    "rmse_r/val": avg_rmse_r_error_test,
+                    "epoch_time": epoch_duration,
+                    "ETA": eta_seconds,
+                    "learning_rate": optimizer.param_groups[0]['lr'],
+                    "GPU_usage": torch.cuda.memory_allocated() / 1e9
+                })
 
             if epoch % cp_epoch == 0:
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
-                    'loss': loss,
+                    'loss': running_loss / data_loader_len if data_loader_len > 0 else 0,
                 }, model_path.format(epoch=epoch))
                 print("Model saved in ", model_path.format(epoch=epoch))
 
         print('Finished Training')
         writer.close()
+        wandb.finish()  # Ensure WandB session is properly closed
 
 if __name__ == "__main__":
     main()
