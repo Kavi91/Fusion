@@ -241,6 +241,7 @@ def main():
     if config["use_lidar"]:
         # LoRCoN-LO Training (Matches lorcon_lo/train.py)
         # Initialize WandB for LoRCoN-LO
+        wandb.finish()
         wandb.init(project="Fusion", name="LoRCoNLO-Training-0", config=config["lorcon_lo"])
 
         seq_sizes = {}
@@ -460,14 +461,25 @@ def main():
                     "GPU_usage": torch.cuda.memory_allocated() / 1e9
                 })
 
-            if epoch % cp_epoch == 0:
+            # Save checkpoint after every epoch
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'loss': running_loss / data_loader_len if data_loader_len > 0 else 0,
+            }, model_path.format(epoch=epoch))
+            print("Model saved after epoch {} in {}".format(epoch, model_path.format(epoch=epoch)))
+
+            # Optionally save additional checkpoints based on cp_epoch
+            if epoch % cp_epoch == 0 and epoch != start_epoch:
+                checkpoint_path_special = os.path.join(new_cp_dir, f"cp-special-{epoch:04d}.pt")
                 torch.save({
                     'epoch': epoch,
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
                     'loss': running_loss / data_loader_len if data_loader_len > 0 else 0,
-                }, model_path.format(epoch=epoch))
-                print("Model saved in ", model_path.format(epoch=epoch))
+                }, checkpoint_path_special)
+                print("Special checkpoint saved at epoch {} in {}".format(epoch, checkpoint_path_special))
 
         print('Finished Training')
         writer.close()

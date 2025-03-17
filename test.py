@@ -41,8 +41,7 @@ def main():
     os.environ["CUDA_VISIBLE_DEVICES"] = config["cuda_visible_devices"]
 
     if config["use_camera"]:
-        # DeepVO Testing (from deepvo/test.py)
-        wandb.init(project="Fusion", name="DeepVO-Testing-0", config=config["deepvo"])  # Initialize WandB for DeepVO testing
+        wandb.init(project="Fusion", name="DeepVO-Testing-0", config=config["deepvo"])
 
         use_cuda = torch.cuda.is_available()
         save_dir = 'result/'
@@ -60,13 +59,28 @@ def main():
         n_workers = 1
         seq_len = int((config["deepvo"]["seq_len"][0] + config["deepvo"]["seq_len"][1]) / 2)
         overlap = seq_len - 1
-        print('seq_len = {}, overlap = {}'.format(seq_len, overlap))
+        print(f"seq_len = {seq_len}, overlap = {overlap}")
         batch_size = config["deepvo"]["batch_size"]
+
+        print(f"Loaded deepvo config: {config['deepvo']}")
 
         with open('test_dump.txt', 'w') as fd:
             fd.write('\n' + '=' * 50 + '\n')
 
             for test_video in config["deepvo"]["valid_video"]:
+                image_path = os.path.join(config["deepvo"]["image_dir"], f"{test_video}", "image_02")
+                print(f"Checking image path: {image_path}")
+                png_files = glob.glob(os.path.join(image_path, "*.png"))
+                jpg_files = glob.glob(os.path.join(image_path, "*.jpg"))
+                print(f"Found {len(png_files)} PNG files, {len(jpg_files)} JPG files")
+
+                gt_pose_raw = np.load(os.path.join(config["deepvo"]["pose_dir"], f"{test_video}.npy"))
+                print(f"Raw ground truth pose [0]: {gt_pose_raw[0]}")
+                gt_pose = gt_pose_raw[:, :6]  # [x, y, z, tx, ty, tz]
+                gt_pose_rel = np.diff(gt_pose, axis=0)
+                gt_pose = np.vstack(([0, 0, 0, 0, 0, 0], gt_pose_rel))  # 271 poses
+                print(f"Video {test_video}: {len(png_files)} frames, {len(gt_pose)} poses")
+
                 df = get_data_info(
                     folder_list=[test_video],
                     seq_len_range=[seq_len, seq_len],
@@ -76,7 +90,8 @@ def main():
                     sort=False,
                     config=config
                 )
-                df = df.loc[df.seq_len == seq_len]  # drop last
+                print(f"Video {test_video}: Added {len(df)} sequences of length {seq_len}")
+                df = df.loc[df.seq_len == seq_len]
                 df.to_csv('test_df.csv')
                 dataset = ImageSequenceDataset(
                     df, config["deepvo"]["resize_mode"],
@@ -85,55 +100,52 @@ def main():
                     config["deepvo"]["minus_point_5"],
                     config=config
                 )
-                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=n_workers)
-
-                gt_pose = np.load(os.path.join(config["deepvo"]["pose_dir"], f"{test_video}.npy"))  # (n_images, 6)
+                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=n_workers, drop_last=False)
 
                 model.eval()
-                has_predict = False
-                answer = [[0.0] * 6, ]
+                answer = [[0.0] * 6]  # Start with initial zero pose
                 st_t = time.time()
                 n_batch = len(dataloader)
 
+                print(f"First ground truth pose: {gt_pose[0]}")
+
                 for i, batch in enumerate(dataloader):
-                    print('{} / {}'.format(i, n_batch), end='\r', flush=True)
+                    print(f'Folder {test_video} batch {i}/{n_batch}', end='\r', flush=True)
                     _, x, y = batch
                     if use_cuda:
                         x = x.cuda()
                         y = y.cuda()
                     batch_predict_pose = model.forward(x)
 
-                    fd.write('Batch: {}\n'.format(i))
+                    if i == 0:
+                        print(f"Raw prediction for batch 0: {batch_predict_pose[0][0]}")
+                        print(f"Input shape to model: {x.shape}")
+                        print(f"Output shape from model: {batch_predict_pose.shape}")
+
+                    fd.write(f'Batch: {i}\n')
                     for seq, predict_pose_seq in enumerate(batch_predict_pose):
                         for pose_idx, pose in enumerate(predict_pose_seq):
-                            fd.write(' {} {} {}\n'.format(seq, pose_idx, pose))
+                            fd.write(f' {seq} {pose_idx} {pose}\n')
+                        answer.append(predict_pose_seq[0].data.cpu().numpy().tolist())  # First pose per sequence
 
-                    batch_predict_pose = batch_predict_pose.data.cpu().numpy()
-                    if i == 0:
-                        for pose in batch_predict_pose[0]:
-                            for j in range(len(pose)):
-                                pose[j] += answer[-1][j]
-                            answer.append(pose.tolist())
-                        batch_predict_pose = batch_predict_pose[1:]
+                if len(answer) != len(gt_pose):
+                    print(f"Adjusting answer length from {len(answer)} to {len(gt_pose)}")
+                    if len(answer) > len(gt_pose):
+                        answer = answer[:len(gt_pose)]
+                    else:
+                        answer.extend([[0.0] * 6] * (len(gt_pose) - len(answer)))
 
-                    for predict_pose_seq in batch_predict_pose:
-                        ang = eulerAnglesToRotationMatrix([0, answer[-1][0], 0])
-                        location = ang.dot(predict_pose_seq[-1][3:])
-                        predict_pose_seq[-1][3:] = location[:]
-                        last_pose = predict_pose_seq[-1]
-                        for j in range(len(last_pose)):
-                            last_pose[j] += answer[-1][j]
-                        last_pose[0] = (last_pose[0] + np.pi) % (2 * np.pi) - np.pi
-                        answer.append(last_pose.tolist())
-
+                print(f'Folder {test_video} finish in {time.time() - st_t} sec')
                 print('len(answer): ', len(answer))
-                print('expect len: ', len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/*.png"))))
+                expected_len = len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/image_02/*.png")))
+                print('expect len: ', expected_len)
                 predict_time = time.time() - st_t
                 print('Predict use {} sec'.format(predict_time))
+                print(f"First predicted pose: {answer[1]}")  # First transition after initial zero
 
                 with open(f'{save_dir}/out_{test_video}.txt', 'w') as f:
                     for pose in answer:
-                        if type(pose) == list:
+                        if isinstance(pose, list):
                             f.write(', '.join([str(p) for p in pose]))
                         else:
                             f.write(str(pose))
@@ -141,24 +153,23 @@ def main():
 
                 loss = 0
                 for t in range(len(gt_pose)):
-                    angle_loss = np.sum((answer[t][:3] - gt_pose[t, :3]) ** 2)
-                    translation_loss = np.sum((answer[t][3:] - gt_pose[t, 3:6]) ** 2)
+                    angle_loss = np.sum((np.array(answer[t])[:3] - gt_pose[t, :3]) ** 2)
+                    translation_loss = np.sum((np.array(answer[t])[3:] - gt_pose[t, 3:]) ** 2)
                     loss += (100 * angle_loss + translation_loss)
                 loss /= len(gt_pose)
                 print('Loss = ', loss)
                 print('=' * 50)
 
-                # Log metrics to WandB for DeepVO
                 wandb.log({
                     f"deepvo/test_loss_{test_video}": loss,
                     f"deepvo/predict_time_{test_video}": predict_time,
                     f"deepvo/predicted_pose_length_{test_video}": len(answer),
-                    f"deepvo/expected_pose_length_{test_video}": len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/*.png")))
+                    f"deepvo/expected_pose_length_{test_video}": expected_len,
+                    f"deepvo/pose_length_mismatch_{test_video}": len(answer) != len(gt_pose)
                 })
 
         fd.close()
-        wandb.finish()  # Close WandB session for DeepVO
-
+        wandb.finish()
     if config["use_lidar"]:
         # LoRCoN-LO Testing (from lorcon_lo/test.py)
         wandb.init(project="Fusion", name="LoRCoNLO-Testing-0", config=config["lorcon_lo"])  # Initialize WandB for LoRCoN-LO testing
