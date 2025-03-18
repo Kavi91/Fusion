@@ -3,18 +3,16 @@ import yaml
 from tqdm import tqdm
 import gen_data_utils
 
-def gen_spherical_data(scan_folder, dst_folder, dataset, fov_up, fov_down, proj_H, proj_W, max_range, seq_pbar):
-    """Generate spherical data with progress tracking for each type."""
-    with tqdm(total=1, desc=f"Depth (Seq {seq_pbar.n+1}/{seq_pbar.total})", leave=False, unit="type") as type_pbar:
-        gen_data_utils.gen_spherical_depth_data(scan_folder, dst_folder, dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
-        type_pbar.update(1)
-    
-    with tqdm(total=1, desc=f"Intensity (Seq {seq_pbar.n+1}/{seq_pbar.total})", leave=False, unit="type") as type_pbar:
-        gen_data_utils.gen_spherical_intensity_data(scan_folder, dst_folder, dataset=dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
-        type_pbar.update(1)
-    
-    with tqdm(total=1, desc=f"Normals (Seq {seq_pbar.n+1}/{seq_pbar.total})", leave=False, unit="type") as type_pbar:
-        gen_data_utils.gen_spherical_normal_data(scan_folder, dst_folder, dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
+def gen_spherical_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up, fov_down, proj_H, proj_W, max_range, seq_pbar):
+    """Generate spherical data with progress tracking for each type, including RGB."""
+    with tqdm(total=4, desc=f"Processing {os.path.basename(scan_folder)}", leave=False, unit="type") as type_pbar:
+        #gen_data_utils.gen_spherical_depth_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
+        #type_pbar.update(1)
+        #gen_data_utils.gen_spherical_intensity_data(scan_folder, rgb_folder, dst_folder, dataset=dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
+        #type_pbar.update(1)
+        #gen_data_utils.gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
+        #type_pbar.update(1)
+        gen_data_utils.gen_spherical_rgb_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=fov_up, fov_down=fov_down, proj_H=proj_H, proj_W=proj_W, max_range=max_range, pbar=type_pbar)
         type_pbar.update(1)
 
 if __name__ == "__main__":
@@ -27,6 +25,7 @@ if __name__ == "__main__":
     lorcon_config = config["lorcon_lo"]
     preprocessed_folder = lorcon_config["preprocessed_folder"]
     scan_base_folder = lorcon_config["scan_folder"]
+    rgb_base_folder = "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences"  # Correct RGB location
     data_seqs = lorcon_config["data_seqs"].split(",")
     dataset = config["dataset"]
 
@@ -40,12 +39,17 @@ if __name__ == "__main__":
     with tqdm(total=len(data_seqs), desc="Processing Sequences", unit="seq") as seq_pbar:
         for seq in data_seqs:
             scan_folder = os.path.join(scan_base_folder, seq, "velodyne")
+            rgb_folder = os.path.join(rgb_base_folder, seq, "image_02")  # Specific RGB subfolder
             dst_folder = os.path.join(preprocessed_folder, seq)
             
             os.makedirs(scan_folder, exist_ok=True)
+            os.makedirs(rgb_folder, exist_ok=True)
             os.makedirs(dst_folder, exist_ok=True)
 
-            gen_spherical_data(scan_folder, dst_folder, dataset, fov_up, fov_down, proj_H, proj_W, max_range, seq_pbar)
+            print(f"Checking files in scan_folder: {len([f for f in os.listdir(scan_folder) if f.endswith('.bin')])} .bin files")
+            print(f"Checking files in rgb_folder: {len([f for f in os.listdir(rgb_folder) if f.endswith('.png')])} .png files")
+
+            gen_spherical_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up, fov_down, proj_H, proj_W, max_range, seq_pbar)
             
             seq_pbar.set_postfix({"Last Seq": seq})
             seq_pbar.update(1)
