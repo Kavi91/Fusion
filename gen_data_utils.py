@@ -7,14 +7,14 @@ import cv2
 def load_files(folder, extensions=('.bin', '.png')):
     """Load files from the specified folder with given extensions."""
     files = [os.path.join(folder, f) for f in os.listdir(folder) if f.endswith(extensions)]
-    #print(f"Found {len(files)} files with {extensions} in {folder}")
+    print(f"Found {len(files)} files with {extensions} in {folder}")
     return sorted(files)
 
 def gen_spherical_depth_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=3.0, fov_down=-25.0, proj_H=64, proj_W=900, max_range=50, pbar=None):
     """Generate spherical depth data with progress."""
     dst_folder = os.path.join(dst_folder, 'depth')
     os.makedirs(dst_folder, exist_ok=True)
-    #print(f"Starting depth generation for {scan_folder} → {dst_folder}")
+    print(f"Starting depth generation for {scan_folder} → {dst_folder}")
 
     scan_paths = [p for p in load_files(scan_folder, ('.bin',)) if p.endswith('.bin')]  # Only .bin files
     rgb_paths = load_files(rgb_folder, ('.png',))  # Only .png files
@@ -31,7 +31,7 @@ def gen_spherical_depth_data(scan_folder, rgb_folder, dst_folder, dataset, fov_u
             print(f"Warning: {scan_paths[idx]} size {lidar_data.size} not divisible by 4, trimming excess")
             lidar_data = lidar_data[:-(lidar_data.size % 4)]
         lidar_data = lidar_data.reshape(-1, 4)
-        #print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
+        print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
 
         X, Y, Z = lidar_data[:, 0], lidar_data[:, 1], lidar_data[:, 2]
 
@@ -56,7 +56,7 @@ def gen_spherical_depth_data(scan_folder, rgb_folder, dst_folder, dataset, fov_u
         # Save as .npy
         npy_path = os.path.join(dst_folder, f"{idx:06d}.npy")
         np.save(npy_path, depth_map)
-        #print(f"✓ Depth file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {depth_map.shape})")
+        print(f"✓ Depth file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {depth_map.shape})")
 
         # Save as .png with error handling
         try:
@@ -70,13 +70,13 @@ def gen_spherical_depth_data(scan_folder, rgb_folder, dst_folder, dataset, fov_u
             else:
                 print(f"Failed to save depth.png for {idx}")
         except Exception as e:
-            #print(f"Error generating depth.png for {idx}: {str(e)}")
+            print(f"Error generating depth.png for {idx}: {str(e)}")
 
 def gen_spherical_intensity_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=3.0, fov_down=-25.0, proj_H=64, proj_W=900, max_range=50, pbar=None):
     """Generate spherical intensity data with progress."""
     dst_folder = os.path.join(dst_folder, 'intensity')
     os.makedirs(dst_folder, exist_ok=True)
-    #print(f"Starting intensity generation for {scan_folder} → {dst_folder}")
+    print(f"Starting intensity generation for {scan_folder} → {dst_folder}")
 
     scan_paths = [p for p in load_files(scan_folder, ('.bin',)) if p.endswith('.bin')]  # Only .bin files
     rgb_paths = load_files(rgb_folder, ('.png',))  # Only .png files
@@ -93,7 +93,7 @@ def gen_spherical_intensity_data(scan_folder, rgb_folder, dst_folder, dataset, f
             print(f"Warning: {scan_paths[idx]} size {lidar_data.size} not divisible by 4, trimming excess")
             lidar_data = lidar_data[:-(lidar_data.size % 4)]
         lidar_data = lidar_data.reshape(-1, 4)
-        #print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
+        print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
 
         X, Y, Z, intensity = lidar_data[:, 0], lidar_data[:, 1], lidar_data[:, 2], lidar_data[:, 3]
 
@@ -118,7 +118,7 @@ def gen_spherical_intensity_data(scan_folder, rgb_folder, dst_folder, dataset, f
         # Save as .npy
         npy_path = os.path.join(dst_folder, f"{idx:06d}.npy")
         np.save(npy_path, intensity_map)
-        #print(f"✓ Intensity file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {intensity_map.shape}, Type: {intensity_map.dtype})")
+        print(f"✓ Intensity file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {intensity_map.shape}, Type: {intensity_map.dtype})")
 
         # Save as .png with error handling
         try:
@@ -130,15 +130,15 @@ def gen_spherical_intensity_data(scan_folder, rgb_folder, dst_folder, dataset, f
             if success:
                 print(f"✓ Intensity file (png) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {png_path}")
             else:
-                #print(f"Failed to save intensity.png for {idx}")
+                print(f"Failed to save intensity.png for {idx}")
         except Exception as e:
-            #print(f"Error generating intensity.png for {idx}: {str(e)}")
+            print(f"Error generating intensity.png for {idx}: {str(e)}")
 
 def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=3.0, fov_down=-25.0, proj_H=64, proj_W=900, max_range=50, pbar=None):
     """Generate spherical normal data with progress."""
     dst_folder = os.path.join(dst_folder, 'normal')
     os.makedirs(dst_folder, exist_ok=True)
-    #print(f"Starting normal generation for {scan_folder} → {dst_folder}")
+    print(f"Starting normal generation for {scan_folder} → {dst_folder}")
 
     scan_paths = [p for p in load_files(scan_folder, ('.bin',)) if p.endswith('.bin')]  # Only .bin files
     rgb_paths = load_files(rgb_folder, ('.png',))  # Only .png files
@@ -146,7 +146,7 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
         print(f"Error: No .bin files found in {scan_folder}")
         return
     if not rgb_paths:
-        #print(f"Warning: No .png files found in {rgb_folder}, RGB generation may be affected")
+        print(f"Warning: No .png files found in {rgb_folder}, RGB generation may be affected")
 
     for idx in tqdm(range(min(len(scan_paths), len(rgb_paths))), desc="Normal Files", leave=False, unit="file"):
         # Load LiDAR point cloud
@@ -155,7 +155,7 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
             print(f"Warning: {scan_paths[idx]} size {lidar_data.size} not divisible by 4, trimming excess")
             lidar_data = lidar_data[:-(lidar_data.size % 4)]
         lidar_data = lidar_data.reshape(-1, 4)
-        #print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
+        print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
 
         X, Y, Z = lidar_data[:, 0], lidar_data[:, 1], lidar_data[:, 2]
 
@@ -178,7 +178,7 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
 
         # Compute normals using KD-Tree and PCA
         xyz_lidar = np.vstack((X, Y, Z)).T
-        #print(f"Building KD-Tree for {xyz_lidar.shape[0]} points...")
+        print(f"Building KD-Tree for {xyz_lidar.shape[0]} points...")
         kdtree = KDTree(xyz_lidar)
 
         def compute_normal(i):
@@ -195,7 +195,7 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
             normal /= np.linalg.norm(normal) + 1e-6  # Normalize to unit length
             return i, (normal + 1) / 2  # Normalize to [0, 1] range
 
-        #print(f"Computing surface normals for {xyz_lidar.shape[0]} points...")
+        print(f"Computing surface normals for {xyz_lidar.shape[0]} points...")
         results = [compute_normal(i) for i in tqdm(range(len(xyz_lidar)), total=len(xyz_lidar), desc="Generating Normals", unit="points", dynamic_ncols=True)]
 
         # Store results in normal map
@@ -206,7 +206,7 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
         # Save as .npy
         npy_path = os.path.join(dst_folder, f"{idx:06d}.npy")
         np.save(npy_path, normals.astype(np.float32))
-        #print(f"✓ Normal file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {normals.shape})")
+        print(f"✓ Normal file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {normals.shape})")
 
         # Save as .png with error handling
         try:
@@ -218,15 +218,15 @@ def gen_spherical_normal_data(scan_folder, rgb_folder, dst_folder, dataset, fov_
             if success:
                 print(f"✓ Normal file (png) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {png_path}")
             else:
-                #print(f"Failed to save normal.png for {idx}")
+                print(f"Failed to save normal.png for {idx}")
         except Exception as e:
-            #print(f"Error generating normal.png for {idx}: {str(e)}")
+            print(f"Error generating normal.png for {idx}: {str(e)}")
 
 def gen_spherical_rgb_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=3.0, fov_down=-25.0, proj_H=64, proj_W=900, max_range=50, pbar=None):
     """Generate spherical RGB data with progress."""
     dst_folder = os.path.join(dst_folder, 'rgb')
     os.makedirs(dst_folder, exist_ok=True)
-    #print(f"Starting RGB generation for {scan_folder} → {dst_folder}")
+    print(f"Starting RGB generation for {scan_folder} → {dst_folder}")
 
     scan_paths = [p for p in load_files(scan_folder, ('.bin',)) if p.endswith('.bin')]  # Only .bin files
     rgb_paths = load_files(rgb_folder, ('.png',))  # Only .png files from rgb_folder
@@ -244,7 +244,7 @@ def gen_spherical_rgb_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=
             print(f"Warning: {scan_paths[idx]} size {lidar_data.size} not divisible by 4, trimming excess")
             lidar_data = lidar_data[:-(lidar_data.size % 4)]
         lidar_data = lidar_data.reshape(-1, 4)
-        #print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
+        print(f"Processing {scan_paths[idx]}: Reshaped to {lidar_data.shape} points")
 
         X, Y, Z = lidar_data[:, 0], lidar_data[:, 1], lidar_data[:, 2]
 
@@ -292,7 +292,7 @@ def gen_spherical_rgb_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=
         # Save as .npy
         npy_path = os.path.join(dst_folder, f"{idx:06d}.npy")
         np.save(npy_path, rgb_map)
-        #print(f"✓ RGB file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {rgb_map.shape})")
+        print(f"✓ RGB file (npy) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {npy_path} (Shape: {rgb_map.shape})")
 
         # Save as .png with error handling
         try:
@@ -304,6 +304,6 @@ def gen_spherical_rgb_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up=
             if success:
                 print(f"✓ RGB file (png) {idx+1}/{min(len(scan_paths), len(rgb_paths))} generated at {png_path}")
             else:
-                #print(f"Failed to save RGB.png for {idx}")
+                print(f"Failed to save RGB.png for {idx}")
         except Exception as e:
-            #print(f"Error generating RGB.png for {idx}: {str(e)}")
+            print(f"Error generating RGB.png for {idx}: {str(e)}")
