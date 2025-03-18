@@ -1,15 +1,20 @@
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 import os
+import matplotlib.pyplot as plt
+from tqdm import tqdm
 
-# Paths
+# Set paths
+base_dir = "/home/kavi/Datasets/KITTI_raw/kitti_data/old_preprocessed_data/04/"
+depth_file = os.path.join(base_dir, "depth/000000.npy")
+intensity_file = os.path.join(base_dir, "intensity/000000.npy")
+normal_file = os.path.join(base_dir, "normal/000000.npy")
 calib_file = "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/04.txt"
-lidar_file = "/home/kavi/Datasets/KITTI_raw/kitti_data/scan/04/velodyne/0000000000.bin"
 rgb_file = "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences/04/image_02/0000000000.png"
-output_dir =  "/home/kavi/Fusion/Projections" # Save images in the same folder
+output_dir = "/home/kavi/Fusion/Projections"
+os.makedirs(output_dir, exist_ok=True)
 
-# **1. Load KITTI Calibration File**
+# **1. Load Calibration Data**
 def load_calib(filepath):
     """Parse KITTI calibration file."""
     with open(filepath, 'r') as f:
@@ -23,103 +28,95 @@ def load_calib(filepath):
     return calib
 
 calib = load_calib(calib_file)
-P2 = calib["P2"]  # Projection matrix for KITTI RGB camera
-Tr = calib["Tr"]  # LiDAR to camera transformation
+P2 = calib["P2"]  # Camera projection matrix
+Tr = calib["Tr"]  # LiDAR-to-camera transformation
 
-# Extract rotation (R) and translation (t) from `Tr`
-R = Tr[:, :3]  # 3x3 rotation
-t = Tr[:, 3:].reshape(3, 1)  # 3x1 translation
-
-# **2. Load LiDAR Point Cloud**
-lidar_points = np.fromfile(lidar_file, dtype=np.float32).reshape(-1, 4)  # (X, Y, Z, Reflectance)
-
-# **3. Convert LiDAR Points to Spherical Coordinates (θ, φ, R)**
-X, Y, Z = lidar_points[:, 0], lidar_points[:, 1], lidar_points[:, 2]
-R_lidar = np.sqrt(X**2 + Y**2 + Z**2)  # Depth (Range)
-theta = np.arctan2(Y, X)  # Azimuth angle
-phi = np.arcsin(Z / R_lidar)  # Elevation angle
-
-# **4. Define KITTI RGB Resolution**
-width = 1226  # Match KITTI RGB width
-height = 370  # Match KITTI RGB height
-
-# **5. Normalize Spherical Depth Map for Projection**
-theta_min, theta_max = -np.pi, np.pi  # Full 360° azimuth range
-phi_min, phi_max = np.radians(-25), np.radians(3)  # LiDAR vertical FOV
-
-u = ((1 - (theta - theta_min) / (theta_max - theta_min)) * width).astype(np.int32)  # Fixed Horizontal Flip
-v = ((phi_max - phi) / (phi_max - phi_min) * height).astype(np.int32)  # Fixed Vertical Mapping
-
-# **6. Create Spherical Depth Map**
-spherical_depth_map = np.zeros((height, width), dtype=np.float32)
-valid_indices = (u >= 0) & (u < width) & (v >= 0) & (v < height)
-spherical_depth_map[v[valid_indices], u[valid_indices]] = R_lidar[valid_indices]  # Assign depth values
-
-# **7. Transform Spherical Depth Points to RGB Camera Frame**
-xyz_lidar = np.vstack((X, Y, Z))  # (3, N)
-xyz_cam = np.dot(R, xyz_lidar) + t  # Apply LiDAR-to-Camera transformation
-
-valid_idx = xyz_cam[2, :] > 0  # Only keep points in front of the camera
-xyz_cam = xyz_cam[:, valid_idx]
-depth_values = xyz_cam[2, :]
-
-# **8. Project Depth Points onto KITTI RGB Camera Plane**
-projected_2d = P2 @ np.vstack((xyz_cam, np.ones((1, xyz_cam.shape[1]))))  # Homogeneous coordinates
-projected_2d /= projected_2d[2]  # Normalize by depth
-
-u_proj = projected_2d[0].astype(int)
-v_proj = projected_2d[1].astype(int)
-
-# **9. Load RGB Image**
+# **2. Load RGB Image**
 rgb_image = cv2.imread(rgb_file)
-rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+rgb_image = cv2.cvtColor(rgb_image, cv2.COLOR_BGR2RGB)
+rgb_H, rgb_W, _ = rgb_image.shape  # 370x1226
 
-h, w, _ = rgb_image.shape
+# **3. Load Preprocessed Depth, Intensity, and Normal Maps**
+depth_map = np.load(depth_file)
+intensity_map = np.load(intensity_file)
+normal_map = np.load(normal_file)
 
-# **10. Filter Points Inside Image Bounds**
-valid_idx = (u_proj >= 0) & (u_proj < w) & (v_proj >= 0) & (v_proj < h)
-u_proj, v_proj = u_proj[valid_idx], v_proj[valid_idx]
-depth_values = depth_values[valid_idx]
+# Get spherical map resolution (expected 64x900)
+H, W = depth_map.shape
 
-# **11. Create Depth Map Aligned to RGB Camera**
-aligned_depth_map = np.zeros((h, w), dtype=np.float32)
-aligned_depth_map[v_proj, u_proj] = depth_values
+# **4. Upsample Maps to Match RGB Resolution**
+depth_map_resized = cv2.resize(depth_map, (rgb_W, rgb_H), interpolation=cv2.INTER_LINEAR)
+intensity_map_resized = cv2.resize(intensity_map, (rgb_W, rgb_H), interpolation=cv2.INTER_LINEAR)
+normal_map_resized = cv2.resize(normal_map, (rgb_W, rgb_H), interpolation=cv2.INTER_LINEAR)
 
-# Normalize depth map for visualization
-aligned_depth_map_normalized = cv2.normalize(aligned_depth_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+# **5. Compute Projection from Spherical to Camera Frame**
+theta_min, theta_max = -np.pi, np.pi
+phi_min, phi_max = np.radians(-25), np.radians(3)
 
-# **12. Overlay Depth Map on RGB Image**
-overlay_depth = rgb_image.copy()
+# Generate spherical coordinates
+theta = np.linspace(theta_min, theta_max, W)
+phi = np.linspace(phi_max, phi_min, H)
+theta, phi = np.meshgrid(theta, phi)
 
-for i in range(len(u_proj)):
-    color = (0, 255, 0)  # Green for depth points
-    cv2.circle(overlay_depth, (u_proj[i], v_proj[i]), 2, color, -1)
+# Convert to Cartesian (LiDAR frame)
+X = depth_map * np.cos(phi) * np.cos(theta)
+Y = depth_map * np.cos(phi) * np.sin(theta)
+Z = depth_map * np.sin(phi)
 
-# **13. Save All High-Resolution Images**
-cv2.imwrite(os.path.join(output_dir, "01_raw_rgb.png"), cv2.cvtColor(rgb_image, cv2.COLOR_RGB2BGR))
-cv2.imwrite(os.path.join(output_dir, "02_spherical_depth_map.png"), cv2.normalize(spherical_depth_map, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8))
-cv2.imwrite(os.path.join(output_dir, "03_aligned_depth_map.png"), aligned_depth_map_normalized)
-cv2.imwrite(os.path.join(output_dir, "04_rgb_depth_overlay.png"), cv2.cvtColor(overlay_depth, cv2.COLOR_RGB2BGR))
+xyz_lidar = np.vstack((X.flatten(), Y.flatten(), Z.flatten())).T  # (N,3)
+xyz_camera = (Tr[:, :3] @ xyz_lidar.T + Tr[:, 3:].reshape(3, 1)).T  # Transform to Camera Frame
 
-# **14. Visualize All Images**
-fig, ax = plt.subplots(1, 4, figsize=(28, 8))
+# **6. Project to Image Plane**
+xyz_camera_hom = np.hstack((xyz_camera, np.ones((xyz_camera.shape[0], 1))))  # Convert to homogeneous coordinates
+uv_camera = (P2 @ xyz_camera_hom.T).T  # Apply projection matrix
 
-ax[0].imshow(rgb_image)
-ax[0].set_title("Raw RGB Image")
-ax[0].axis("off")
+# Convert homogeneous coordinates (u, v, w) → (u/w, v/w)
+u_proj = (uv_camera[:, 0] / uv_camera[:, 2]).astype(int)
+v_proj = (uv_camera[:, 1] / uv_camera[:, 2]).astype(int)
 
-ax[1].imshow(spherical_depth_map, cmap='plasma')
-ax[1].set_title("Raw Spherical Depth Map")
-ax[1].axis("off")
+# **7. Ensure Projection Validity**
+valid = (u_proj >= 0) & (u_proj < rgb_W) & (v_proj >= 0) & (v_proj < rgb_H)
+u_proj_valid = u_proj[valid]
+v_proj_valid = v_proj[valid]
 
-ax[2].imshow(aligned_depth_map_normalized, cmap='plasma')
-ax[2].set_title("Depth Map Aligned to RGB")
-ax[2].axis("off")
+# **8. Overlay Depth, Intensity & Normal Maps on RGB**
+def overlay_colormap(rgb, u, v, values, colormap="rainbow"):
+    """Overlay depth/intensity/normal points with a colormap, ensuring valid indices."""
+    # Normalize values
+    values_normalized = cv2.normalize(values, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    color_map = cv2.applyColorMap(values_normalized, cv2.COLORMAP_RAINBOW)
 
-ax[3].imshow(overlay_depth)
-ax[3].set_title("Aligned RGB + Depth Overlay")
-ax[3].axis("off")
+    # Overlay valid points
+    for i in range(len(u)):
+        rgb[v[i], u[i]] = color_map[v[i], u[i]]
 
+    return rgb
+
+overlayed_depth = overlay_colormap(rgb_image.copy(), u_proj_valid, v_proj_valid, depth_map_resized)
+overlayed_intensity = overlay_colormap(rgb_image.copy(), u_proj_valid, v_proj_valid, intensity_map_resized)
+overlayed_normals = overlay_colormap(rgb_image.copy(), u_proj_valid, v_proj_valid, np.linalg.norm(normal_map_resized, axis=2))
+
+# **9. Save Overlayed Images**
+cv2.imwrite(os.path.join(output_dir, "projected_src_depth.png"), cv2.cvtColor(overlayed_depth, cv2.COLOR_RGB2BGR))
+cv2.imwrite(os.path.join(output_dir, "projected_src_intensity.png"), cv2.cvtColor(overlayed_intensity, cv2.COLOR_RGB2BGR))
+cv2.imwrite(os.path.join(output_dir, "projected_src_normal.png"), cv2.cvtColor(overlayed_normals, cv2.COLOR_RGB2BGR))
+
+# **10. Display Results**
+fig, axes = plt.subplots(3, 2, figsize=(14, 12))
+
+titles = [
+    "Original RGB", "Depth Map Overlay",
+    "Original RGB", "Intensity Map Overlay",
+    "Original RGB", "Normal Map Overlay"
+]
+images = [rgb_image, overlayed_depth, rgb_image, overlayed_intensity, rgb_image, overlayed_normals]
+
+for ax, img, title in zip(axes.flat, images, titles):
+    ax.imshow(img)
+    ax.set_title(title)
+    ax.axis("off")
+
+plt.tight_layout()
 plt.show()
 
-print(f"✅ All images saved in: {output_dir}")
+print(f"\n✅ All projected maps saved in: {output_dir}")

@@ -43,18 +43,24 @@ deepvo:
 
 # LoRCoN-LO settings
 lorcon_lo:
+  scan_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/scan"
   preprocessed_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/preprocessed_data/"
   relative_pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/relative_pose/"
   pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
   calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
   timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
-  data_seqs: "00,01,02,04,05,06,07,08,09,10"
+  data_seqs: "04" #00,01,02,04,05,06,07,08,09,10"
   test_seqs: "09,10"
   batch_size: 24
   epochs: 5
   rnn_size: 2
-  image_width: 900
-  image_height: 64
+  image_width: 1226
+  image_height: 370
+  fov_up: 3.0
+  fov_down: -25.0
+  proj_H: 370
+  proj_W: 1226
+  max_range: 50
   depth_name: "depth"
   intensity_name: "intensity"
   normal_name: "normal"
