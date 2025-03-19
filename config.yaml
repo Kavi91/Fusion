@@ -5,8 +5,8 @@ num_workers: 16
 cuda_visible_devices: "0,1"
 
 # Modality flags
-use_camera: True
-use_lidar: False
+use_camera: False
+use_lidar: True
 use_fusion: False
 
 # DeepVO settings
@@ -87,6 +87,6 @@ fusion:
   use_grad_scaler: True
   modalities:
     use_depth: True
-    use_intensity: False
-    use_normals: False
-    use_rgb_low: False
+    use_intensity: True
+    use_normals: True
+    use_rgb_low: True
