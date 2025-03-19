@@ -12,10 +12,10 @@ use_fusion: False
 
 # DeepVO settings
 deepvo:
-  image_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences/"  # Ensure this contains .png files
-  pose_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
-  calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
-  timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
+  image_dir: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/sequences/"  # Ensure this contains .png files
+  pose_dir: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/poses/"
+  calib_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/calib/"
+  timestamp_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/timestamp_folder"
   train_data_info_path: "datainfo/train_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
   valid_data_info_path: "datainfo/valid_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
   train_video: ["00", "01", "02"] #, "05", "08", "09"]
@@ -44,12 +44,12 @@ deepvo:
 
 # LoRCoN-LO settings
 lorcon_lo:
-  scan_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/scan"
-  preprocessed_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/preprocessed_data/"
-  relative_pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/relative_pose/"
-  pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
-  calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
-  timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
+  scan_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/scan"
+  preprocessed_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/preprocessed_data/"
+  relative_pose_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/relative_pose/"
+  pose_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/poses/"
+  calib_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/calib/"
+  timestamp_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/timestamp_folder"
   data_seqs: "00,01,02,04" #05,06,07,08,09,10"
   test_seqs: "04"
   batch_size: 16

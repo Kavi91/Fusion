@@ -4,7 +4,7 @@ class Parameters():
 	def __init__(self):
 		self.n_processors = max(1, os.cpu_count() - 4)
 		# Path
-		self.data_dir =  '/home/kavi/Datasets/KITTI_raw/kitti_data'
+		self.data_dir =  '/home/krkavinda/Datasets/KITTI_raw/kitti_data'
 		self.image_dir = self.data_dir + '/sequences/'
 		self.pose_dir = self.data_dir + '/poses/'
 		
