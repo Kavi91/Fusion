@@ -1,14 +1,14 @@
 # General settings
 dataset: "KITTI"
 device: "cuda:0"
-num_workers: 16
+num_workers: 8
 cuda_visible_devices: "0,1"
 wandb_project: "FusionLIVO"
 
 # Modality flags
-use_camera: True
+use_camera: False
 use_lidar: False
-use_fusion: False
+use_fusion: True
 
 # DeepVO settings
 deepvo:
@@ -28,7 +28,7 @@ deepvo:
   minus_point_5: True
   seq_len: [5, 7]  # Updated to match standalone script
   sample_times: 3
-  batch_size: 16  # Updated to match standalone script
+  batch_size: 32  # Updated to match standalone script
   epochs: 5
   rnn_hidden_size: 1000
   conv_dropout: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5]
@@ -59,8 +59,8 @@ lorcon_lo:
   image_height: 64
   fov_up: 3.0
   fov_down: -25.0
-  proj_H: 370
-  proj_W: 1226
+  proj_H: 64
+  proj_W: 900
   max_range: 50
   depth_name: "depth"
   intensity_name: "intensity"
@@ -77,10 +77,10 @@ lorcon_lo:
   checkpoint_test_path: "0020/cp-0005.pt"
   model_path: "models/lorcon_lo_model_best.pth"
 
-# Fusion settings
+# Fusion settings (optimized for PC1)
 fusion:
-  batch_size: 16
-  epochs: 5
+  batch_size: 32  # Increased from 8 to leverage GPU
+  epochs: 10  # Increased from 5 for better training
   model_path: "models/fusion_model_best.pth"
   rnn_hidden_size: 1024
   dropout: 0.3
@@ -91,3 +91,6 @@ fusion:
     use_intensity: False
     use_normals: False
     use_rgb_low: False
+  optim:  # Added optimizer settings
+    opt: "Adam"  # Changed to Adam for better convergence
+    lr: 0.0005
