@@ -36,7 +36,8 @@ def get_dataset_and_model(model_name, config, seq_len, train=True):
     section = config[model_name]
     if model_name == "deepvo":
         seq_len = int((section["seq_len"][0] + section["seq_len"][1]) / 2)
-        df = get_data_info(folder_list=section["train_video" if train else "valid_video"], seq_len_range=[seq_len, seq_len], 
+        folder_list = [os.path.join(f, "image_02") for f in section["train_video" if train else "valid_video"]]
+        df = get_data_info(folder_list=folder_list, seq_len_range=[seq_len, seq_len], 
                            overlap=1, sample_times=section["sample_times"], config=config)
         df = df[df['seq_len'] == seq_len]
         dataset = ImageSequenceDataset(df, resize_mode=section["resize_mode"], new_size=(section["img_w"], section["img_h"]), 
@@ -69,7 +70,14 @@ def get_dataset_and_model(model_name, config, seq_len, train=True):
                                   section["intensity_name"], section["normal_name"], section["dni_size"], section["normal_size"])
         model = LoRCoNLO(batch_size=section["batch_size"], batchNorm=False)
     elif model_name == "fusion":
-        seqs = sorted(list(set(config["deepvo"]["train_video" if train else "valid_video"]) & set(config["lorcon_lo"]["data_seqs"])))
+        deepvo_seqs = config["deepvo"]["train_video" if train else "valid_video"]
+        lorcon_seqs = config["lorcon_lo"]["data_seqs"]
+        print(f"DeepVO seqs (raw): {deepvo_seqs}")
+        print(f"LoRCoN seqs (raw): {lorcon_seqs}")
+        lorcon_seqs_split = lorcon_seqs.split(",")
+        print(f"LoRCoN seqs (split): {lorcon_seqs_split}")
+        seqs = sorted(list(set(deepvo_seqs) & set(lorcon_seqs_split)))
+        print(f"Fusion sequences: {seqs}")
         dataset = FusionDataset(config, seqs, seq_len)
         modalities = [m for m, enabled in config["fusion"]["modalities"].items() if enabled]
         print(f"{model_name} modalities enabled: {', '.join(modalities)}")
@@ -77,7 +85,6 @@ def get_dataset_and_model(model_name, config, seq_len, train=True):
     return dataset, model
 
 def train_model(model_name, config, device):
-    # Read WandB project name from config, default to "FusionLIVO" if not specified
     wandb_project = config.get("wandb_project", "FusionLIVO")
     wandb.init(project=wandb_project, name=f"{model_name}-Training-0", config=config[model_name])
     section = config[model_name]
@@ -112,17 +119,28 @@ def train_model(model_name, config, device):
         train_loss, train_loss_unweighted, rmse_train, grad_norm = 0.0, 0.0, 0.0, 0.0
         
         for batch in train_dl:
-            inputs = batch[1] if model_name == "deepvo" else batch[0]
-            targets = batch[2] if model_name == "deepvo" else batch[1]
-            inputs, targets = inputs.float().to(device), targets.float().to(device)
+            inputs = batch[1] if model_name == "deepvo" else batch[0] if model_name == "lorcon_lo" else (batch[0], batch[1])
+            targets = batch[2]
+            if model_name == "fusion":
+                rgb_high = inputs[0].float().to(device)
+                lidar_combined = inputs[1].float().to(device)
+            else:
+                inputs = inputs.float().to(device)
+            targets = targets.float().to(device)
             optimizer.zero_grad()
             
             if section.get("use_autocast", False):
                 with autocast():
-                    outputs = model(inputs)
+                    if model_name == "fusion":
+                        outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                    else:
+                        outputs = model(inputs)
                     loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
             else:
-                outputs = model(inputs)
+                if model_name == "fusion":
+                    outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                else:
+                    outputs = model(inputs)
                 loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
             
             (scaler.scale(loss) if scaler else loss).backward()
@@ -148,15 +166,26 @@ def train_model(model_name, config, device):
         val_loss, val_loss_unweighted, rmse_val, gt_poses, pred_poses = 0.0, 0.0, 0.0, [], []
         with torch.no_grad():
             for batch in valid_dl:
-                inputs = batch[1] if model_name == "deepvo" else batch[0]
-                targets = batch[2] if model_name == "deepvo" else batch[1]
-                inputs, targets = inputs.float().to(device), targets.float().to(device)
+                inputs = batch[1] if model_name == "deepvo" else batch[0] if model_name == "lorcon_lo" else (batch[0], batch[1])
+                targets = batch[2]
+                if model_name == "fusion":
+                    rgb_high = inputs[0].float().to(device)
+                    lidar_combined = inputs[1].float().to(device)
+                else:
+                    inputs = inputs.float().to(device)
+                targets = targets.float().to(device)
                 if section.get("use_autocast", False):
                     with autocast():
-                        outputs = model(inputs)
+                        if model_name == "fusion":
+                            outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                        else:
+                            outputs = model(inputs)
                         loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
                 else:
-                    outputs = model(inputs)
+                    if model_name == "fusion":
+                        outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                    else:
+                        outputs = model(inputs)
                     loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
                 val_loss += loss.item()
                 val_loss_unweighted += compute_unweighted_mse(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)

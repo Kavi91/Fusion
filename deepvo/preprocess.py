@@ -172,8 +172,8 @@ def calculate_rgb_mean_std(image_path_list, minus_point_5=False):
 if __name__ == '__main__':
     # Separate calls for cleaning
     #clean_unused_images()  # Clean camera images
-    clean_unused_lidar()   # Clean LiDAR data
-    #create_pose_data()     # Generate pose .npy files
+    #clean_unused_lidar()   # Clean LiDAR data
+    create_pose_data()     # Generate pose .npy files
     
     # Calculate RGB mean/std for remaining images
     train_video = ['00', '02', '08', '09', '06', '04', '10']
