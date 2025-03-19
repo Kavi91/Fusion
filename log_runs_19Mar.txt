@@ -1,0 +1,438 @@
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_105508-becx6q9o
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run lorcon_lo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/becx6q9o
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo train idx: 0 to 10298, len=10297, Y_data len=10570
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo valid idx: 10300 to 10568, len=269, Y_data len=10570
+lorcon_lo Epochs:   0%|                                                                                                                                                              | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 0.057073 (Unweighted: 0.018060), Val Loss: 0.012803 (Unweighted: 0.005514), Train RMSE: 0.1165, Val RMSE: 0.0608, ATE: 0.1056, RPE: 0.0282, Grad Norm: 2.5859, Time: 72.39s, ETA: 00:04:49
+lorcon_lo Epochs:  20%|██████████████████████████████                                                                                                                        | 1/5 [01:17<05:09, 77.39s/it]Epoch 2/5: Train Loss: 0.026490 (Unweighted: 0.007126), Val Loss: 0.006914 (Unweighted: 0.002021), Train RMSE: 0.0822, Val RMSE: 0.0391, ATE: 0.0632, RPE: 0.0131, Grad Norm: 1.7123, Time: 72.99s, ETA: 00:03:38
+lorcon_lo Epochs:  40%|████████████████████████████████████████████████████████████                                                                                          | 2/5 [02:35<03:53, 77.94s/it]Epoch 3/5: Train Loss: 0.016408 (Unweighted: 0.005200), Val Loss: 0.034553 (Unweighted: 0.014289), Train RMSE: 0.0705, Val RMSE: 0.1067, ATE: 0.1686, RPE: 0.0130, Grad Norm: 1.5575, Time: 72.84s, ETA: 00:02:25
+lorcon_lo Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████                                                            | 3/5 [03:52<02:34, 77.31s/it]Epoch 4/5: Train Loss: 0.011215 (Unweighted: 0.003950), Val Loss: 0.071615 (Unweighted: 0.033212), Train RMSE: 0.0616, Val RMSE: 0.1734, ATE: 0.2581, RPE: 0.0264, Grad Norm: 1.1255, Time: 71.66s, ETA: 00:01:11
+lorcon_lo Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████                              | 4/5 [05:07<01:16, 76.52s/it]Epoch 5/5: Train Loss: 0.009427 (Unweighted: 0.003256), Val Loss: 0.031143 (Unweighted: 0.013925), Train RMSE: 0.0560, Val RMSE: 0.1133, ATE: 0.1665, RPE: 0.0209, Grad Norm: 1.0021, Time: 71.77s, ETA: 00:00:00
+lorcon_lo Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:23<00:00, 76.63s/it]
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate ▃▁▅█▅
+wandb:          epoch_time ▅█▇▁▂
+wandb:                 eta █▆▅▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▄▃▂▁
+wandb:       learning_rate ▁▁▁▁▁
+wandb:                 rpe █▁▁▇▅
+wandb:          train_loss █▃▂▁▁
+wandb: train_loss_weighted █▄▂▁▁
+wandb:          train_rmse █▄▃▂▁
+wandb:            val_loss ▂▁▄█▄
+wandb:   val_loss_weighted ▂▁▄█▄
+wandb:            val_rmse ▂▁▅█▅
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.1665
+wandb:          epoch_time 71.775
+wandb:                 eta 0
+wandb:           gpu_usage 6.58044
+wandb:           grad_norm 1.00213
+wandb:       learning_rate 0.0005
+wandb:                 rpe 0.02089
+wandb:          train_loss 0.00326
+wandb: train_loss_weighted 0.00943
+wandb:          train_rmse 0.05597
+wandb:            val_loss 0.01392
+wandb:   val_loss_weighted 0.03114
+wandb:            val_rmse 0.11332
+wandb: 
+wandb: 🚀 View run lorcon_lo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/becx6q9o
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_105508-becx6q9o/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_110521-1wlual1v
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run deepvo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/1wlual1v
+Video 00: 4541 frames, 4541 poses
+Sample start from frame [0, 2, 4]
+Video 00: Added 908 sequences of length 6
+Video 00: Added 907 sequences of length 6
+Video 00: Added 907 sequences of length 6
+Folder 00 finish in 0.005451202392578125 sec
+Video 01: 1101 frames, 1101 poses
+Sample start from frame [0, 2, 4]
+Video 01: Added 220 sequences of length 6
+Video 01: Added 220 sequences of length 6
+Video 01: Added 218 sequences of length 6
+Folder 01 finish in 0.001455545425415039 sec
+Video 02: 4661 frames, 4661 poses
+Sample start from frame [0, 2, 4]
+Video 02: Added 932 sequences of length 6
+Video 02: Added 931 sequences of length 6
+Video 02: Added 931 sequences of length 6
+Folder 02 finish in 0.004917621612548828 sec
+Video 04: 271 frames, 271 poses
+Sample start from frame [0, 2, 4]
+Video 04: Added 54 sequences of length 6
+Video 04: Added 53 sequences of length 6
+Video 04: Added 52 sequences of length 6
+Folder 04 finish in 0.007314920425415039 sec
+deepvo Epochs:   0%|                                                                                                                                                                 | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 9.314321 (Unweighted: 0.059455), Val Loss: 3.917046 (Unweighted: 0.019767), Train RMSE: 0.1972, Val RMSE: 0.1330, ATE: 0.3132, RPE: 0.0874, Grad Norm: 176.0630, Time: 80.22s, ETA: 00:05:20
+deepvo Epochs:  20%|██████████████████████████████▌                                                                                                                          | 1/5 [01:21<05:25, 81.39s/it]Epoch 2/5: Train Loss: 1.812246 (Unweighted: 0.010878), Val Loss: 1.343345 (Unweighted: 0.006814), Train RMSE: 0.1028, Val RMSE: 0.0757, ATE: 0.1837, RPE: 0.0551, Grad Norm: 55.8171, Time: 80.99s, ETA: 00:04:02
+deepvo Epochs:  40%|█████████████████████████████████████████████████████████████▏                                                                                           | 2/5 [02:43<04:05, 81.83s/it]Epoch 3/5: Train Loss: 1.080357 (Unweighted: 0.006429), Val Loss: 1.783165 (Unweighted: 0.008949), Train RMSE: 0.0794, Val RMSE: 0.0878, ATE: 0.2106, RPE: 0.0533, Grad Norm: 39.2023, Time: 81.66s, ETA: 00:02:43
+deepvo Epochs:  60%|███████████████████████████████████████████████████████████████████████████████████████████▊                                                             | 3/5 [04:05<02:44, 82.03s/it]Epoch 4/5: Train Loss: 0.777019 (Unweighted: 0.004557), Val Loss: 2.283924 (Unweighted: 0.011430), Train RMSE: 0.0669, Val RMSE: 0.1026, ATE: 0.2382, RPE: 0.0611, Grad Norm: 31.7630, Time: 81.33s, ETA: 00:01:21
+deepvo Epochs:  80%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▍                              | 4/5 [05:27<01:21, 81.99s/it]Epoch 5/5: Train Loss: 0.593733 (Unweighted: 0.003471), Val Loss: 2.708906 (Unweighted: 0.013567), Train RMSE: 0.0584, Val RMSE: 0.1135, ATE: 0.2598, RPE: 0.0562, Grad Norm: 26.1706, Time: 83.06s, ETA: 00:00:00
+deepvo Epochs: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:51<00:00, 82.28s/it]
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate █▁▂▄▅
+wandb:          epoch_time ▁▃▅▄█
+wandb:                 eta █▆▅▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▂▂▁▁
+wandb:       learning_rate ▁▁▁▁▁
+wandb:                 rpe █▁▁▃▂
+wandb:          train_loss █▂▁▁▁
+wandb: train_loss_weighted █▂▁▁▁
+wandb:          train_rmse █▃▂▁▁
+wandb:            val_loss █▁▂▃▅
+wandb:   val_loss_weighted █▁▂▄▅
+wandb:            val_rmse █▁▂▄▆
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.25975
+wandb:          epoch_time 83.05561
+wandb:                 eta 0
+wandb:           gpu_usage 2.53302
+wandb:           grad_norm 26.17062
+wandb:       learning_rate 0.0005
+wandb:                 rpe 0.05621
+wandb:          train_loss 0.00347
+wandb: train_loss_weighted 0.59373
+wandb:          train_rmse 0.0584
+wandb:            val_loss 0.01357
+wandb:   val_loss_weighted 2.70891
+wandb:            val_rmse 0.11348
+wandb: 
+wandb: 🚀 View run deepvo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/1wlual1v
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_110521-1wlual1v/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_111853-m8qk2q6k
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run lorcon_lo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/m8qk2q6k
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo train idx: 0 to 10298, len=10297, Y_data len=10570
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo valid idx: 10300 to 10568, len=269, Y_data len=10570
+lorcon_lo Epochs:   0%|                                                                                                                                                              | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 0.069360 (Unweighted: 0.023183), Val Loss: 0.018454 (Unweighted: 0.008341), Train RMSE: 0.1340, Val RMSE: 0.0850, ATE: 0.1284, RPE: 0.0139, Grad Norm: 2.6418, Time: 71.71s, ETA: 00:04:46
+lorcon_lo Epochs:  20%|██████████████████████████████                                                                                                                        | 1/5 [01:16<05:07, 76.96s/it]Epoch 2/5: Train Loss: 0.026083 (Unweighted: 0.006459), Val Loss: 0.051345 (Unweighted: 0.023723), Train RMSE: 0.0785, Val RMSE: 0.1496, ATE: 0.2181, RPE: 0.0249, Grad Norm: 1.4654, Time: 71.79s, ETA: 00:03:35
+lorcon_lo Epochs:  40%|████████████████████████████████████████████████████████████                                                                                          | 2/5 [02:32<03:48, 76.08s/it]Epoch 3/5: Train Loss: 0.021699 (Unweighted: 0.004599), Val Loss: 0.019362 (Unweighted: 0.009473), Train RMSE: 0.0666, Val RMSE: 0.0938, ATE: 0.1375, RPE: 0.0177, Grad Norm: 1.1357, Time: 71.76s, ETA: 00:02:23
+lorcon_lo Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████                                                            | 3/5 [03:47<02:31, 75.79s/it]Epoch 4/5: Train Loss: 0.019017 (Unweighted: 0.004573), Val Loss: 0.046847 (Unweighted: 0.021888), Train RMSE: 0.0662, Val RMSE: 0.1428, ATE: 0.2087, RPE: 0.0234, Grad Norm: 1.2386, Time: 71.77s, ETA: 00:01:11
+lorcon_lo Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████                              | 4/5 [05:03<01:15, 75.66s/it]Epoch 5/5: Train Loss: 0.009811 (Unweighted: 0.003201), Val Loss: 0.061836 (Unweighted: 0.029208), Train RMSE: 0.0555, Val RMSE: 0.1658, ATE: 0.2415, RPE: 0.0190, Grad Norm: 0.8605, Time: 71.81s, ETA: 00:00:00
+lorcon_lo Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:18<00:00, 75.76s/it]
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate ▁▇▂▆█
+wandb:          epoch_time ▁▇▄▅█
+wandb:                 eta █▆▅▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▃▂▂▁
+wandb:       learning_rate ▁▁▁▁▁
+wandb:                 rpe ▁█▃▇▄
+wandb:          train_loss █▂▁▁▁
+wandb: train_loss_weighted █▃▂▂▁
+wandb:          train_rmse █▃▂▂▁
+wandb:            val_loss ▁▆▁▆█
+wandb:   val_loss_weighted ▁▆▁▆█
+wandb:            val_rmse ▁▇▂▆█
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.24153
+wandb:          epoch_time 71.81319
+wandb:                 eta 0
+wandb:           gpu_usage 6.58044
+wandb:           grad_norm 0.86045
+wandb:       learning_rate 0.0005
+wandb:                 rpe 0.01903
+wandb:          train_loss 0.0032
+wandb: train_loss_weighted 0.00981
+wandb:          train_rmse 0.05551
+wandb:            val_loss 0.02921
+wandb:   val_loss_weighted 0.06184
+wandb:            val_rmse 0.16581
+wandb: 
+wandb: 🚀 View run lorcon_lo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/m8qk2q6k
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_111853-m8qk2q6k/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_112635-ic1zljnh
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run lorcon_lo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/ic1zljnh
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo train idx: 0 to 10298, len=10297, Y_data len=10570
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo valid idx: 10300 to 10568, len=269, Y_data len=10570
+lorcon_lo Epochs:   0%|                                                                                                                                                              | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 0.048862 (Unweighted: 0.014388), Val Loss: 0.041433 (Unweighted: 0.018146), Train RMSE: 0.1048, Val RMSE: 0.1318, ATE: 0.1902, RPE: 0.0105, Grad Norm: 2.6900, Time: 71.83s, ETA: 00:04:47
+lorcon_lo Epochs:  20%|██████████████████████████████                                                                                                                        | 1/5 [01:17<05:08, 77.17s/it]Epoch 2/5: Train Loss: 0.014819 (Unweighted: 0.004924), Val Loss: 0.033310 (Unweighted: 0.015639), Train RMSE: 0.0684, Val RMSE: 0.1180, ATE: 0.1767, RPE: 0.0245, Grad Norm: 1.5542, Time: 71.84s, ETA: 00:03:35
+lorcon_lo Epochs:  40%|████████████████████████████████████████████████████████████                                                                                          | 2/5 [02:34<03:51, 77.15s/it]Epoch 3/5: Train Loss: 0.010250 (Unweighted: 0.003522), Val Loss: 0.029955 (Unweighted: 0.013697), Train RMSE: 0.0580, Val RMSE: 0.1135, ATE: 0.1658, RPE: 0.0174, Grad Norm: 1.1314, Time: 71.90s, ETA: 00:02:23
+lorcon_lo Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████                                                            | 3/5 [03:51<02:34, 77.16s/it]Epoch 4/5: Train Loss: 0.008985 (Unweighted: 0.003076), Val Loss: 0.050141 (Unweighted: 0.023200), Train RMSE: 0.0541, Val RMSE: 0.1455, ATE: 0.2155, RPE: 0.0272, Grad Norm: 1.0550, Time: 72.24s, ETA: 00:01:12
+lorcon_lo Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████                              | 4/5 [05:07<01:16, 76.68s/it]Epoch 5/5: Train Loss: 0.006733 (Unweighted: 0.002272), Val Loss: 0.024381 (Unweighted: 0.011025), Train RMSE: 0.0467, Val RMSE: 0.0985, ATE: 0.1479, RPE: 0.0276, Grad Norm: 0.8258, Time: 72.34s, ETA: 00:00:00
+lorcon_lo Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:25<00:00, 77.01s/it]
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate ▅▄▃█▁
+wandb:          epoch_time ▁▁▂▇█
+wandb:                 eta █▆▅▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▄▂▂▁
+wandb:       learning_rate ▁▁▁▁▁
+wandb:                 rpe ▁▇▄██
+wandb:          train_loss █▃▂▁▁
+wandb: train_loss_weighted █▂▂▁▁
+wandb:          train_rmse █▄▂▂▁
+wandb:            val_loss ▅▄▃█▁
+wandb:   val_loss_weighted ▆▃▃█▁
+wandb:            val_rmse ▆▄▃█▁
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.14787
+wandb:          epoch_time 72.338
+wandb:                 eta 0
+wandb:           gpu_usage 6.58044
+wandb:           grad_norm 0.82582
+wandb:       learning_rate 0.0005
+wandb:                 rpe 0.02764
+wandb:          train_loss 0.00227
+wandb: train_loss_weighted 0.00673
+wandb:          train_rmse 0.04675
+wandb:            val_loss 0.01102
+wandb:   val_loss_weighted 0.02438
+wandb:            val_rmse 0.09846
+wandb: 
+wandb: 🚀 View run lorcon_lo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/ic1zljnh
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_112635-ic1zljnh/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_113817-x8ij8xy3
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run lorcon_lo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/x8ij8xy3
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo train idx: 0 to 10298, len=10297, Y_data len=10570
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo valid idx: 10300 to 10568, len=269, Y_data len=10570
+lorcon_lo Epochs:   0%|                                                                                                                                                              | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 0.053503 (Unweighted: 0.016415), Val Loss: 0.043610 (Unweighted: 0.021094), Train RMSE: 0.1131, Val RMSE: 0.1411, ATE: 0.2046, RPE: 0.0146, Grad Norm: 2.5848, Time: 73.39s, ETA: 00:04:53
+lorcon_lo Epochs:  20%|██████████████████████████████                                                                                                                        | 1/5 [01:18<05:15, 78.83s/it]Epoch 2/5: Train Loss: 0.015423 (Unweighted: 0.004948), Val Loss: 0.054864 (Unweighted: 0.027187), Train RMSE: 0.0687, Val RMSE: 0.1614, ATE: 0.2324, RPE: 0.0174, Grad Norm: 1.3300, Time: 74.46s, ETA: 00:03:43
+lorcon_lo Epochs:  40%|████████████████████████████████████████████████████████████                                                                                          | 2/5 [02:36<03:55, 78.44s/it]Epoch 3/5: Train Loss: 0.009936 (Unweighted: 0.003453), Val Loss: 0.037496 (Unweighted: 0.018237), Train RMSE: 0.0575, Val RMSE: 0.1295, ATE: 0.1903, RPE: 0.0119, Grad Norm: 0.9576, Time: 73.13s, ETA: 00:02:26
+lorcon_lo Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████                                                            | 3/5 [03:55<02:36, 78.43s/it]Epoch 4/5: Train Loss: 0.007318 (Unweighted: 0.002510), Val Loss: 0.070739 (Unweighted: 0.034208), Train RMSE: 0.0490, Val RMSE: 0.1792, ATE: 0.2620, RPE: 0.0224, Grad Norm: 0.7382, Time: 72.66s, ETA: 00:01:12
+lorcon_lo Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████                              | 4/5 [05:11<01:17, 77.62s/it]Epoch 5/5: Train Loss: 0.005989 (Unweighted: 0.002039), Val Loss: 0.028168 (Unweighted: 0.013680), Train RMSE: 0.0441, Val RMSE: 0.1079, ATE: 0.1652, RPE: 0.0176, Grad Norm: 0.6564, Time: 72.80s, ETA: 00:00:00
+lorcon_lo Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:30<00:00, 78.02s/it]
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate ▄▆▃█▁
+wandb:          epoch_time ▄█▃▁▂
+wandb:                 eta █▆▄▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▃▂▁▁
+wandb:       learning_rate ▁▁▁▁▁
+wandb:                 rpe ▃▅▁█▅
+wandb:          train_loss █▂▂▁▁
+wandb: train_loss_weighted █▂▂▁▁
+wandb:          train_rmse █▃▂▁▁
+wandb:            val_loss ▄▆▃█▁
+wandb:   val_loss_weighted ▄▅▃█▁
+wandb:            val_rmse ▄▆▃█▁
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.16519
+wandb:          epoch_time 72.79708
+wandb:                 eta 0
+wandb:           gpu_usage 6.58044
+wandb:           grad_norm 0.65638
+wandb:       learning_rate 0.0005
+wandb:                 rpe 0.01764
+wandb:          train_loss 0.00204
+wandb: train_loss_weighted 0.00599
+wandb:          train_rmse 0.04414
+wandb:            val_loss 0.01368
+wandb:   val_loss_weighted 0.02817
+wandb:            val_rmse 0.10786
+wandb: 
+wandb: 🚀 View run lorcon_lo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/x8ij8xy3
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_113817-x8ij8xy3/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_115259-21304tvo
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run deepvo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/21304tvo
+Video 00: 4541 frames, 4541 poses
+Sample start from frame [0, 2, 4]
+Video 00: Added 908 sequences of length 6
+Video 00: Added 907 sequences of length 6
+Video 00: Added 907 sequences of length 6
+Folder 00 finish in 0.005634307861328125 sec
+Video 01: 1101 frames, 1101 poses
+Sample start from frame [0, 2, 4]
+Video 01: Added 220 sequences of length 6
+Video 01: Added 220 sequences of length 6
+Video 01: Added 218 sequences of length 6
+Folder 01 finish in 0.0015044212341308594 sec
+Video 02: 4661 frames, 4661 poses
+Sample start from frame [0, 2, 4]
+Video 02: Added 932 sequences of length 6
+Video 02: Added 931 sequences of length 6
+Video 02: Added 931 sequences of length 6
+Folder 02 finish in 0.0048444271087646484 sec
+Video 04: 271 frames, 271 poses
+Sample start from frame [0, 2, 4]
+Video 04: Added 54 sequences of length 6
+Video 04: Added 53 sequences of length 6
+Video 04: Added 52 sequences of length 6
+Folder 04 finish in 0.0010614395141601562 sec
+deepvo Epochs:   0%|                                                                                                                                                                 | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 7.622217 (Unweighted: 0.048084), Val Loss: 2.520952 (Unweighted: 0.012711), Train RMSE: 0.1818, Val RMSE: 0.1091, ATE: 0.2514, RPE: 0.1107, Grad Norm: 161.9473, Time: 80.91s, ETA: 00:05:23, LR: 0.000500
+Saved best model to models/deepvo/deepvo_model_best.pth
+Saved epoch 1 model to models/deepvo/deepvo_model_epoch1.pth
+deepvo Epochs:  20%|██████████████████████████████▌                                                                                                                          | 1/5 [01:21<05:27, 81.83s/it]Epoch 2/5: Train Loss: 1.549510 (Unweighted: 0.008924), Val Loss: 2.715920 (Unweighted: 0.013610), Train RMSE: 0.0932, Val RMSE: 0.1091, ATE: 0.2600, RPE: 0.0739, Grad Norm: 52.1728, Time: 81.76s, ETA: 00:04:05, LR: 0.000050
+Saved epoch 2 model to models/deepvo/deepvo_model_epoch2.pth
+deepvo Epochs:  40%|█████████████████████████████████████████████████████████████▏                                                                                           | 2/5 [02:44<04:06, 82.06s/it]Epoch 3/5: Train Loss: 0.895586 (Unweighted: 0.005225), Val Loss: 2.151126 (Unweighted: 0.010770), Train RMSE: 0.0718, Val RMSE: 0.0982, ATE: 0.2312, RPE: 0.0480, Grad Norm: 30.6944, Time: 80.96s, ETA: 00:02:41, LR: 0.000050
+Saved best model to models/deepvo/deepvo_model_best.pth
+Saved epoch 3 model to models/deepvo/deepvo_model_epoch3.pth
+deepvo Epochs:  60%|███████████████████████████████████████████████████████████████████████████████████████████▊                                                             | 3/5 [04:06<02:44, 82.04s/it]Epoch 4/5: Train Loss: 0.764645 (Unweighted: 0.004509), Val Loss: 2.371424 (Unweighted: 0.011868), Train RMSE: 0.0667, Val RMSE: 0.1050, ATE: 0.2429, RPE: 0.0619, Grad Norm: 29.3665, Time: 81.06s, ETA: 00:01:21, LR: 0.000005
+Saved epoch 4 model to models/deepvo/deepvo_model_epoch4.pth
+deepvo Epochs:  80%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▍                              | 4/5 [05:27<01:21, 81.84s/it]Epoch 5/5: Train Loss: 0.671965 (Unweighted: 0.004018), Val Loss: 2.397330 (Unweighted: 0.012000), Train RMSE: 0.0630, Val RMSE: 0.1051, ATE: 0.2442, RPE: 0.0548, Grad Norm: 26.0720, Time: 81.36s, ETA: 00:00:00, LR: 0.000005
+Saved epoch 5 model to models/deepvo/deepvo_model_epoch5.pth
+deepvo Epochs: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:49<00:00, 81.89s/it]
+deepvo training completed successfully!
+wandb:                                                                                
+wandb: 
+wandb: Run history:
+wandb:                 ate ▆█▁▄▄
+wandb:          epoch_time ▁█▁▂▅
+wandb:                 eta █▆▅▃▁
+wandb:           gpu_usage ▁▁▁▁▁
+wandb:           grad_norm █▂▁▁▁
+wandb:       learning_rate █▂▂▁▁
+wandb:                 rpe █▄▁▃▂
+wandb:          train_loss █▂▁▁▁
+wandb: train_loss_weighted █▂▁▁▁
+wandb:          train_rmse █▃▂▁▁
+wandb:            val_loss ▆█▁▄▄
+wandb:   val_loss_weighted ▆█▁▄▄
+wandb:            val_rmse ██▁▅▅
+wandb: 
+wandb: Run summary:
+wandb:                 ate 0.24416
+wandb:          epoch_time 81.35673
+wandb:                 eta 0
+wandb:           gpu_usage 2.53302
+wandb:           grad_norm 26.07203
+wandb:       learning_rate 1e-05
+wandb:                 rpe 0.05484
+wandb:          train_loss 0.00402
+wandb: train_loss_weighted 0.67197
+wandb:          train_rmse 0.06302
+wandb:            val_loss 0.012
+wandb:   val_loss_weighted 2.39733
+wandb:            val_rmse 0.10506
+wandb: 
+wandb: 🚀 View run deepvo-Training-0 at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/21304tvo
+wandb: ⭐️ View project at: https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: Synced 5 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: ./wandb/run-20250319_115259-21304tvo/logs
+(LO-env) kavi@kavi-Prime-360:~/Fusion$ python train.py
+wandb: Using wandb-core as the SDK backend.  Please refer to https://wandb.me/wandb-core for more information.
+wandb: Currently logged in as: kavindamadhujith (kavindamadhujith-University of Oulu3545) to https://api.wandb.ai. Use `wandb login --relogin` to force relogin
+wandb: Tracking run with wandb version 0.19.8
+wandb: Run data is saved locally in /home/kavi/Fusion/wandb/run-20250319_120104-352fecn7
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run lorcon_lo-Training-0
+wandb: ⭐️ View project at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO
+wandb: 🚀 View run at https://wandb.ai/kavindamadhujith-University%20of%20Oulu3545/FusionLIVO/runs/352fecn7
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo train idx: 0 to 10298, len=10297, Y_data len=10570
+lorcon_lo modalities enabled: depth, intensity, normals
+Warning: Mismatch for 00: 4540 poses vs 4541 files, using 4540
+Warning: Mismatch for 01: 1100 poses vs 1101 files, using 1100
+Warning: Mismatch for 02: 4660 poses vs 4661 files, using 4660
+Warning: Mismatch for 04: 270 poses vs 271 files, using 270
+lorcon_lo valid idx: 10300 to 10568, len=269, Y_data len=10570
+lorcon_lo modalities enabled: depth, intensity, normals
+lorcon_lo Epochs:   0%|                                                                                                                                                              | 0/5 [00:00<?, ?it/s]Epoch 1/5: Train Loss: 0.057668 (Unweighted: 0.017916), Val Loss: 0.073166 (Unweighted: 0.036375), Train RMSE: 0.1176, Val RMSE: 0.1866, ATE: 0.2688, RPE: 0.0094, Grad Norm: 2.6910, Time: 72.14s, ETA: 00:04:48, LR: 0.000500
+Saved best model to checkpoints/KITTI/0002/lorcon_lo_model_best.pth
+Saved checkpoint to checkpoints/KITTI/0002/cp-0000.pt
+lorcon_lo Epochs:  20%|██████████████████████████████                                                                                                                        | 1/5 [01:17<05:08, 77.14s/it]Epoch 2/5: Train Loss: 0.021244 (Unweighted: 0.004902), Val Loss: 0.030528 (Unweighted: 0.009417), Train RMSE: 0.0687, Val RMSE: 0.0921, ATE: 0.1364, RPE: 0.0230, Grad Norm: 1.5407, Time: 74.30s, ETA: 00:03:42, LR: 0.000050
+Saved best model to checkpoints/KITTI/0002/lorcon_lo_model_best.pth
+Saved checkpoint to checkpoints/KITTI/0002/cp-0001.pt
+lorcon_lo Epochs:  40%|████████████████████████████████████████████████████████████                                                                                          | 2/5 [02:37<03:56, 78.81s/it]Epoch 3/5: Train Loss: 0.009222 (Unweighted: 0.002962), Val Loss: 0.051861 (Unweighted: 0.022816), Train RMSE: 0.0536, Val RMSE: 0.1461, ATE: 0.2134, RPE: 0.0164, Grad Norm: 0.8504, Time: 73.75s, ETA: 00:02:27, LR: 0.000050
+Saved checkpoint to checkpoints/KITTI/0002/cp-0002.pt
+lorcon_lo Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████                                                            | 3/5 [03:54<02:36, 78.37s/it]Epoch 4/5: Train Loss: 0.006674 (Unweighted: 0.002221), Val Loss: 0.049791 (Unweighted: 0.022266), Train RMSE: 0.0464, Val RMSE: 0.1431, ATE: 0.2113, RPE: 0.0202, Grad Norm: 0.7203, Time: 73.60s, ETA: 00:01:13, LR: 0.000005
+Saved checkpoint to checkpoints/KITTI/0002/cp-0003.pt
+lorcon_lo Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████                              | 4/5 [05:12<01:17, 77.98s/it]Epoch 5/5: Train Loss: 0.005173 (Unweighted: 0.001714), Val Loss: 0.059473 (Unweighted: 0.026825), Train RMSE: 0.0408, Val RMSE: 0.1588, ATE: 0.2318, RPE: 0.0183, Grad Norm: 0.5917, Time: 72.97s, ETA: 00:00:00, LR: 0.000005
+Saved checkpoint to checkpoints/KITTI/0002/cp-0004.pt
+lorcon_lo Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 5/5 [06:29<00:00, 77.81s/it]
+lorcon_lo training completed successfully!
+

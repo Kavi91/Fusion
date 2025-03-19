@@ -3,10 +3,11 @@ dataset: "KITTI"
 device: "cuda:0"
 num_workers: 16
 cuda_visible_devices: "0,1"
+wandb_project: "FusionLIVO"
 
 # Modality flags
-use_camera: False
-use_lidar: True
+use_camera: True
+use_lidar: False
 use_fusion: False
 
 # DeepVO settings
@@ -87,6 +88,6 @@ fusion:
   use_grad_scaler: True
   modalities:
     use_depth: True
-    use_intensity: True
-    use_normals: True
-    use_rgb_low: True
+    use_intensity: False
+    use_normals: False
+    use_rgb_low: False

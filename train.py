@@ -62,6 +62,8 @@ def get_dataset_and_model(model_name, config, seq_len, train=True):
             start_idx += seq_len - 1
         idx = train_idx if train else test_idx
         print(f"{model_name} {'train' if train else 'valid'} idx: {idx.min()} to {idx.max()}, len={len(idx)}, Y_data len={len(Y_data)}")
+        modalities = ["depth", "intensity", "normals"]
+        print(f"{model_name} modalities enabled: {', '.join(modalities)}")
         dataset = LoRCoNLODataset(section["preprocessed_folder"], Y_data, idx, seq_sizes, section["rnn_size"], 
                                   section["image_width"], section["image_height"], section["depth_name"], 
                                   section["intensity_name"], section["normal_name"], section["dni_size"], section["normal_size"])
@@ -69,11 +71,15 @@ def get_dataset_and_model(model_name, config, seq_len, train=True):
     elif model_name == "fusion":
         seqs = sorted(list(set(config["deepvo"]["train_video" if train else "valid_video"]) & set(config["lorcon_lo"]["data_seqs"])))
         dataset = FusionDataset(config, seqs, seq_len)
+        modalities = [m for m, enabled in config["fusion"]["modalities"].items() if enabled]
+        print(f"{model_name} modalities enabled: {', '.join(modalities)}")
         model = FusionLIVO(config, rgb_height=184, rgb_width=608, lidar_height=64, lidar_width=900)
     return dataset, model
 
 def train_model(model_name, config, device):
-    wandb.init(project="FusionLIVO", name=f"{model_name}-Training-0", config=config[model_name])
+    # Read WandB project name from config, default to "FusionLIVO" if not specified
+    wandb_project = config.get("wandb_project", "FusionLIVO")
+    wandb.init(project=wandb_project, name=f"{model_name}-Training-0", config=config[model_name])
     section = config[model_name]
     seq_len = section.get("rnn_size", 2) if model_name != "deepvo" else int((section["seq_len"][0] + section["seq_len"][1]) / 2)
     
@@ -85,18 +91,20 @@ def train_model(model_name, config, device):
     valid_dl = DataLoader(valid_dataset, batch_size=section["batch_size"], shuffle=False, num_workers=config["num_workers"])
     
     optimizer = optim.Adam(model.parameters(), lr=section.get("optim", {}).get("lr", 0.0005))
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1)
     criterion = WeightedLoss().to(device)
     scaler = GradScaler() if section.get("use_grad_scaler", False) else None
     
     epochs = section["epochs"]
     min_loss_v = float("inf")
     
-    cp_dir = None
-    if model_name == "lorcon_lo":
-        cp_folder = os.path.join(section.get("cp_folder", "checkpoints"), config["dataset"])
-        os.makedirs(cp_folder, exist_ok=True)
-        cp_dir = os.path.join(cp_folder, str(len(next(os.walk(cp_folder))[1])).zfill(4))
-        os.makedirs(cp_dir, exist_ok=True)
+    if model_name == "deepvo":
+        model_dir = "models/deepvo"
+    elif model_name == "fusion":
+        model_dir = "models/fusion"
+    else:  # lorcon_lo
+        model_dir = os.path.join(section.get("cp_folder", "checkpoints"), config["dataset"], str(len(next(os.walk(section.get("cp_folder", "checkpoints")))[1])).zfill(4))
+    os.makedirs(model_dir, exist_ok=True)
     
     for epoch in tqdm(range(epochs), desc=f"{model_name} Epochs"):
         t_start = time.time()
@@ -129,6 +137,8 @@ def train_model(model_name, config, device):
             rmse_train += WeightedLoss.RMSEError(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets).item()
             grad_norm += sum(p.grad.norm(2).item() for p in model.parameters() if p.grad is not None)
         
+        scheduler.step()
+        
         avg_train_loss = train_loss / len(train_dl)
         avg_train_loss_unweighted = train_loss_unweighted / len(train_dl)
         avg_rmse_train = rmse_train / len(train_dl)
@@ -151,7 +161,6 @@ def train_model(model_name, config, device):
                 val_loss += loss.item()
                 val_loss_unweighted += compute_unweighted_mse(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
                 rmse_val += WeightedLoss.RMSEError(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets).item()
-                # Align shapes for ATE/RPE
                 gt = targets[:, 1:, :] if model_name == "deepvo" else targets
                 gt_poses.append(gt.cpu().numpy())
                 pred_poses.append(outputs.cpu().numpy())
@@ -179,21 +188,32 @@ def train_model(model_name, config, device):
         print(f"Epoch {epoch+1}/{epochs}: Train Loss: {avg_train_loss:.6f} (Unweighted: {avg_train_loss_unweighted:.6f}), "
               f"Val Loss: {avg_val_loss:.6f} (Unweighted: {avg_val_loss_unweighted:.6f}), Train RMSE: {avg_rmse_train:.4f}, "
               f"Val RMSE: {avg_rmse_val:.4f}, ATE: {ate:.4f}, RPE: {rpe:.4f}, Grad Norm: {avg_grad_norm:.4f}, "
-              f"Time: {epoch_duration:.2f}s, ETA: {eta_str}")
+              f"Time: {epoch_duration:.2f}s, ETA: {eta_str}, LR: {optimizer.param_groups[0]['lr']:.6f}")
         
-        os.makedirs(os.path.dirname(section["model_path"]), exist_ok=True)
-        if avg_val_loss < min_loss_v:
-            min_loss_v = avg_val_loss
-            torch.save(model.state_dict(), section["model_path"])
-        if model_name == "deepvo" or model_name == "fusion":
-            torch.save(model.state_dict(), section["model_path"].replace("_best.pth", f"_epoch{epoch+1}.pth"))
-        elif model_name == "lorcon_lo":
-            torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 
-                        'loss': avg_train_loss}, os.path.join(cp_dir, f"cp-{epoch:04d}.pt"))
-            if epoch % section["checkpoint_epoch"] == 0 and epoch > 0:
+        try:
+            if avg_val_loss < min_loss_v:
+                min_loss_v = avg_val_loss
+                best_path = os.path.join(model_dir, f"{model_name}_model_best.pth")
+                torch.save(model.state_dict(), best_path)
+                print(f"Saved best model to {best_path}")
+            if model_name == "deepvo" or model_name == "fusion":
+                epoch_path = os.path.join(model_dir, f"{model_name}_model_epoch{epoch+1}.pth")
+                torch.save(model.state_dict(), epoch_path)
+                print(f"Saved epoch {epoch+1} model to {epoch_path}")
+            elif model_name == "lorcon_lo":
+                cp_path = os.path.join(model_dir, f"cp-{epoch:04d}.pt")
                 torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 
-                            'loss': avg_train_loss}, os.path.join(cp_dir, f"cp-special-{epoch:04d}.pt"))
+                            'loss': avg_train_loss}, cp_path)
+                print(f"Saved checkpoint to {cp_path}")
+                if epoch % section["checkpoint_epoch"] == 0 and epoch > 0:
+                    special_path = os.path.join(model_dir, f"cp-special-{epoch:04d}.pt")
+                    torch.save({'epoch': epoch, 'model_state_dict': model.state_dict(), 'optimizer_state_dict': optimizer.state_dict(), 
+                                'loss': avg_train_loss}, special_path)
+                    print(f"Saved special checkpoint to {special_path}")
+        except Exception as e:
+            print(f"Failed to save model: {e}")
     
+    print(f"{model_name} training completed successfully!")
     wandb.finish()
 
 def main():
