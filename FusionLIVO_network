@@ -1,0 +1,41 @@
+// FusionLIVO Network
+digraph {
+	A [label="RGB Input
+(batch, 2, 6, 184, 608)"]
+	B [label="LiDAR Input
+(batch, 2, 1, 64, 900)"]
+	C [label="DeepVO CNN
+Multi-scale Features"]
+	D [label="LoRCoNLO CNN
+Multi-scale Features"]
+	E [label="FPN (RGB)
+256@64x900"]
+	F [label="FPN (LiDAR)
+256@64x900"]
+	G [label="Concatenation
+512@64x900"]
+	H [label="Attention
+1@64x900"]
+	I [label="Fused Features
+512@64x900"]
+	J [label="Fusion Conv
+256@64x900"]
+	K [label="Flatten
+256*64*900"]
+	L [label="Bi-LSTM
+2048"]
+	M [label="Linear
+6-DoF Poses"]
+	A -> C
+	B -> D
+	C -> E
+	D -> F
+	E -> G
+	F -> G
+	G -> H
+	H -> I
+	I -> J
+	J -> K
+	K -> L
+	L -> M
+}

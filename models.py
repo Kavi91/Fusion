@@ -5,7 +5,7 @@ from torch.autograd import Variable
 from torch.nn.init import kaiming_normal_, orthogonal_
 import numpy as np
 
-# DeepVO Helper Function and Model (from deepvo/model.py)
+# DeepVO Helper Function and Model (unchanged from standalone)
 def conv(batchNorm, in_planes, out_planes, kernel_size=3, stride=1, dropout=0):
     if batchNorm:
         return nn.Sequential(
@@ -114,11 +114,11 @@ class DeepVO(nn.Module):
         loss = self.get_loss(x, y)
         loss.backward()
         if self.clip is not None:
-            torch.nn.utils.clip_grad_norm_(self.rnn.parameters(), self.clip)  # Updated to clip_grad_norm_
+            torch.nn.utils.clip_grad_norm_(self.rnn.parameters(), self.clip)
         optimizer.step()
         return loss
 
-# LoRCoN-LO Model and Loss (from standalone lorcon_lo/model.py)
+# LoRCoN-LO Model (unchanged from standalone)
 class LoRCoNLO(nn.Module):
     def __init__(self, batch_size, batchNorm=True):
         super(LoRCoNLO, self).__init__()
@@ -215,6 +215,97 @@ class LoRCoNLO(nn.Module):
     def bias_parameters(self):
         return [param for name, param in self.named_parameters() if 'bias' in name]
 
+# FusionLIVO Model (updated to read config directly)
+class FusionLIVO(nn.Module):
+    def __init__(self, config, rgb_height=184, rgb_width=608, lidar_height=64, lidar_width=900, rnn_hidden_size=1024):
+        super(FusionLIVO, self).__init__()
+        
+        # Compute input channels from config
+        use_depth = config["fusion"]["modalities"]["use_depth"]
+        use_intensity = config["fusion"]["modalities"]["use_intensity"]
+        use_normals = config["fusion"]["modalities"]["use_normals"]
+        use_rgb_low = config["fusion"]["modalities"]["use_rgb_low"]
+        input_channels = (3 if use_rgb_low else 0) + (1 if use_depth else 0) + (1 if use_intensity else 0) + (3 if use_normals else 0)
+        if input_channels == 0:
+            raise ValueError("No modalities selected for FusionLIVO input")
+        
+        # Encoders
+        self.deepvo = DeepVO(rgb_height, rgb_width, batchNorm=True)
+        self.lorconlo = LoRCoNLO(batch_size=16, batchNorm=False)
+        self.lorconlo.simple_conv1 = nn.Conv2d(in_channels=input_channels, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
+        
+        # FPN for RGB (high-res)
+        self.fpn_rgb = nn.ModuleList([
+            nn.Conv2d(256, 256, 1),  # conv3_1
+            nn.Conv2d(512, 256, 1),  # conv4_1
+            nn.Conv2d(1024, 256, 1)  # conv6
+        ])
+        self.fpn_rgb_upsample = nn.ModuleList([
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
+        ])
+        
+        # FPN for LiDAR + Low-Res RGB
+        self.fpn_lidar = nn.ModuleList([
+            nn.Conv2d(128, 256, 1),  # conv3
+            nn.Conv2d(256, 256, 1),  # conv4
+            nn.Conv2d(128, 256, 1)   # conv6
+        ])
+        self.fpn_lidar_upsample = nn.ModuleList([
+            nn.Upsample(scale_factor=2, mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
+        ])
+        
+        # Attention
+        self.attention = nn.Sequential(
+            nn.Conv2d(512, 1, 1),
+            nn.Sigmoid()
+        )
+        
+        # Fusion and RNN
+        self.fusion_conv = nn.Conv2d(512, 256, 3, padding=1)
+        self.rnn = nn.LSTM(256 * lidar_height * lidar_width, rnn_hidden_size, num_layers=2, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(rnn_hidden_size * 2, 6)
+    
+    def forward(self, rgb_high, lidar_combined):
+        # High-res RGB feature extraction
+        rgb_features = [
+            self.deepvo.conv3_1(self.deepvo.conv3(self.deepvo.conv2(self.deepvo.conv1(rgb_high)))),
+            self.deepvo.conv4_1(self.deepvo.conv4(self.deepvo.conv3_1(self.deepvo.conv3(self.deepvo.conv2(self.deepvo.conv1(rgb_high)))))),
+            self.deepvo.encode_image(rgb_high)
+        ]
+        
+        # Combined low-res RGB + LiDAR feature extraction
+        lidar_features = [
+            self.lorconlo.simple_conv3(self.lorconlo.conv_bn2(self.lorconlo.simple_conv2(self.lorconlo.conv_bn1(self.lorconlo.simple_conv1(lidar_combined))))),
+            self.lorconlo.simple_conv4(self.lorconlo.conv_bn3(self.lorconlo.simple_conv3(self.lorconlo.conv_bn2(self.lorconlo.simple_conv2(self.lorconlo.conv_bn1(self.lorconlo.simple_conv1(lidar_combined))))))),
+            self.lorconlo.encode_image(lidar_combined)
+        ]
+        
+        # FPN processing
+        rgb_fpn = [self.fpn_rgb[i](rgb_features[i]) for i in range(3)]
+        rgb_fpn[1] = rgb_fpn[1] + self.fpn_rgb_upsample[0](rgb_fpn[2])
+        rgb_fpn[0] = rgb_fpn[0] + self.fpn_rgb_upsample[0](rgb_fpn[1])
+        rgb_fused = self.fpn_rgb_upsample[1](rgb_fpn[0])
+        
+        lidar_fpn = [self.fpn_lidar[i](lidar_features[i]) for i in range(3)]
+        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[0](lidar_fpn[2])
+        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[0](lidar_fpn[1])
+        lidar_fused = self.fpn_lidar_upsample[1](lidar_fpn[0])
+        
+        # Fusion
+        fused = torch.cat([rgb_fused, lidar_fused], dim=1)
+        attn = self.attention(fused)
+        fused = fused * attn
+        fused = self.fusion_conv(fused)
+        
+        batch, seq_len, c, h, w = fused.shape
+        fused = fused.view(batch, seq_len, -1)
+        out, _ = self.rnn(fused)
+        out = self.fc(out)
+        return out
+
+# WeightedLoss (unchanged from standalone)
 class WeightedLoss(nn.Module):
     def __init__(self, learn_hyper_params=True, device="cpu"):
         super(WeightedLoss, self).__init__()
