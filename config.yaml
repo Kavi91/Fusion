@@ -1,7 +1,7 @@
 # General settings
 dataset: "KITTI"
 device: "cuda:0"
-num_workers: 8
+num_workers: 24
 cuda_visible_devices: "0,1"
 wandb_project: "FusionLIVO"
 
@@ -18,8 +18,8 @@ deepvo:
   timestamp_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/timestamp_folder"
   train_data_info_path: "datainfo/train_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
   valid_data_info_path: "datainfo/valid_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
-  train_video: ["00", "01", "02"] #, "05", "08", "09"]
-  valid_video: ["04"] #, "06", "07", "10"]
+  train_video: ["00", "01", "02", "04", "05", "06", "07", "08"]
+  valid_video: ["09", "10"]
   resize_mode: "rescale"
   img_h: 184
   img_w: 608
@@ -50,9 +50,9 @@ lorcon_lo:
   pose_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/poses/"
   calib_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/calib/"
   timestamp_folder: "/home/krkavinda/Datasets/KITTI_raw/kitti_data/timestamp_folder"
-  data_seqs: "00,01,02,04" #05,06,07,08,09,10"
-  test_seqs: "04"
-  batch_size: 16
+  data_seqs: "00,01,02,04,05,06,07,08,09,10"
+  test_seqs: "09,10"
+  batch_size: 32
   epochs: 5
   rnn_size: 2
   image_width: 900
@@ -79,7 +79,7 @@ lorcon_lo:
 
 # Fusion settings (optimized for PC1)
 fusion:
-  batch_size: 32  # Increased from 8 to leverage GPU
+  batch_size: 24  # Increased from 8 to leverage GPU
   epochs: 10  # Increased from 5 for better training
   model_path: "models/fusion_model_best.pth"
   rnn_hidden_size: 1024

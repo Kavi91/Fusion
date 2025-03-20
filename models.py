@@ -227,29 +227,29 @@ class FusionLIVO(nn.Module):
         
         self.deepvo = DeepVO(rgb_height, rgb_width, batchNorm=True)
         self.deepvo.conv1 = conv(self.deepvo.batchNorm, 3, 64, kernel_size=7, stride=2, dropout=self.deepvo.conv_dropout[0])
-        self.lorconlo = LoRCoNLO(batch_size=32, batchNorm=False)
+        self.lorconlo = LoRCoNLO(batch_size=config["fusion"]["batch_size"], batchNorm=False)
         self.lorconlo.simple_conv1 = nn.Conv2d(in_channels=input_channels, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
         
         self.fpn_rgb = nn.ModuleList([
-            nn.Conv2d(256, 256, 1),  # conv3_1
-            nn.Conv2d(512, 256, 1),  # conv4_1
-            nn.Conv2d(1024, 256, 1)  # conv6
+            nn.Conv2d(256, 256, 1),
+            nn.Conv2d(512, 256, 1),
+            nn.Conv2d(1024, 256, 1)
         ])
         self.fpn_rgb_upsample = nn.ModuleList([
-            nn.Upsample(size=(12, 38), mode='bilinear', align_corners=False),  # Match conv4_1
-            nn.Upsample(size=(23, 76), mode='bilinear', align_corners=False),  # Match conv3_1
-            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)  # Final size
+            nn.Upsample(size=(12, 38), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(23, 76), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
         
         self.fpn_lidar = nn.ModuleList([
-            nn.Conv2d(128, 256, 1),  # simple_conv3
-            nn.Conv2d(256, 256, 1),  # simple_conv4
-            nn.Conv2d(128, 256, 1)   # encode_image
+            nn.Conv2d(128, 256, 1),
+            nn.Conv2d(256, 256, 1),
+            nn.Conv2d(128, 256, 1)
         ])
         self.fpn_lidar_upsample = nn.ModuleList([
-            nn.Upsample(size=(32, 55), mode='bilinear', align_corners=False),  # Match simple_conv4
-            nn.Upsample(size=(64, 111), mode='bilinear', align_corners=False), # Match simple_conv3
-            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)  # Final size
+            nn.Upsample(size=(64, 111), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(32, 55), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
         
         self.attention = nn.Sequential(
@@ -265,7 +265,7 @@ class FusionLIVO(nn.Module):
     def forward(self, rgb_high, lidar_combined):
         # rgb_high: (batch, seq_len, 3, 184, 608)
         batch_size, seq_len, c, h, w = rgb_high.shape
-        rgb_high = rgb_high.view(batch_size * seq_len, c, h, w)  # (64, 3, 184, 608)
+        rgb_high = rgb_high.view(batch_size * seq_len, c, h, w)
         
         # Process RGB through DeepVO conv layers
         conv1_out = self.deepvo.conv1(rgb_high)
@@ -292,44 +292,33 @@ class FusionLIVO(nn.Module):
         lidar_combined = lidar_combined.view(batch_size * seq_len, c_lidar, h_lidar, w_lidar)
         
         # Process LiDAR through LoRCoNLO conv layers
-        conv1_out = self.lorconlo.simple_conv1(lidar_combined)
-        conv1_out = self.lorconlo.conv_bn1(conv1_out)
-        conv1_out = F.leaky_relu(conv1_out, 0.1)
-        conv2_out = self.lorconlo.simple_conv2(conv1_out)
-        conv2_out = self.lorconlo.conv_bn2(conv2_out)
-        conv2_out = F.leaky_relu(conv2_out, 0.1)
-        conv3_out = self.lorconlo.simple_conv3(conv2_out)
-        conv3_out = self.lorconlo.conv_bn3(conv3_out)
-        conv3_out = F.leaky_relu(conv3_out, 0.1)
-        conv4_out = self.lorconlo.simple_conv4(conv3_out)
-        conv4_out = self.lorconlo.conv_bn4(conv4_out)
-        conv4_out = F.leaky_relu(conv4_out, 0.1)
-        conv5_out = self.lorconlo.simple_conv5(conv4_out)
-        conv5_out = self.lorconlo.conv_bn5(conv5_out)
-        conv5_out = F.leaky_relu(conv5_out, 0.1)
-        conv6_out = self.lorconlo.simple_conv6(conv5_out)
-        conv6_out = self.lorconlo.conv_bn6(conv6_out)
-        conv6_out = F.leaky_relu(conv6_out, 0.1)
+        lidar_conv1 = self.lorconlo.simple_conv1(lidar_combined)
+        lidar_conv2 = self.lorconlo.simple_conv2(self.lorconlo.conv_bn1(lidar_conv1))
+        lidar_conv3 = self.lorconlo.simple_conv3(self.lorconlo.conv_bn2(lidar_conv2))
+        lidar_conv4 = self.lorconlo.simple_conv4(self.lorconlo.conv_bn3(lidar_conv3))
+        lidar_conv5 = self.lorconlo.simple_conv5(self.lorconlo.conv_bn4(lidar_conv4))
+        lidar_conv6 = self.lorconlo.simple_conv6(self.lorconlo.conv_bn5(lidar_conv5))
         
-        lidar_features = [conv3_out, conv4_out, conv6_out]
+        lidar_features = [lidar_conv3, lidar_conv4, lidar_conv6]
         
         # FPN processing for LiDAR
         lidar_fpn = [self.fpn_lidar[i](lidar_features[i]) for i in range(3)]
-        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[0](lidar_fpn[2])  # (64, 256, 32, 55)
-        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[1](lidar_fpn[1])  # (64, 256, 64, 111)
-        lidar_fused = self.fpn_lidar_upsample[2](lidar_fpn[0])  # (64, 256, 64, 900)
+        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[1](lidar_fpn[2])
+        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[0](lidar_fpn[1])
+        lidar_fused = self.fpn_lidar_upsample[2](lidar_fpn[0])
         lidar_fused = lidar_fused.view(batch_size, seq_len, lidar_fused.size(1), lidar_fused.size(2), lidar_fused.size(3))
         
         # Fusion
-        fused = torch.cat([rgb_fused, lidar_fused], dim=2)
+        fused = torch.cat([rgb_fused, lidar_fused], dim=2)  # (batch, seq_len, 512, 64, 900)
+        fused = fused.view(batch_size * seq_len, fused.size(2), fused.size(3), fused.size(4))  # (batch * seq_len, 512, 64, 900)
         attn = self.attention(fused)
         fused = fused * attn
         fused = self.fusion_conv(fused)
+        fused = fused.view(batch_size, seq_len, fused.size(1), fused.size(2), fused.size(3))
         
         # Reduce spatial dimensions
-        batch, seq_len, c, h, w = fused.shape
         fused = self.pool(fused)
-        fused = fused.view(batch, seq_len, 256)
+        fused = fused.view(batch_size, seq_len, 256)
         
         out, _ = self.rnn(fused)
         out = self.fc(out)

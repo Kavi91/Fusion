@@ -1,0 +1,27 @@
+Epoch 1/10: Train Loss: 17.461557 (Unweighted: 0.090252), Val Loss: 8.237910 (Unweighted: 0.041231), Train RMSE: 0.2956, Val RMSE: 0.2000, ATE: 0.2817, RPE: 0.0108, Grad Norm: nan, Time: 223.94s, ETA: 00:33:35, LR: 0.000500
+Saved best model to models/fusion/fusion_model_best.pth
+Saved epoch 1 model to models/fusion/fusion_model_epoch1.pth
+fusion Epochs:  10%|███████████████                                                                                                                                        | 1/10 [03:47<34:06, 227.40s/itEpoch 2/10: Train Loss: 10.376457 (Unweighted: 0.054789), Val Loss: 10.626945 (Unweighted: 0.053182), Train RMSE: 0.2284, Val RMSE: 0.2169, ATE: 0.3151, RPE: 0.0259, Grad Norm: inf, Time: 221.63s, ETA: 00:29:33, LR: 0.000050
+Saved epoch 2 model to models/fusion/fusion_model_epoch2.pth
+fusion Epochs:  20%|██████████████████████████████▏                                                                                                                        | 2/10 [07:30<30:00, 225.06s/itEpoch 3/10: Train Loss: 5.460579 (Unweighted: 0.030159), Val Loss: 2.565810 (Unweighted: 0.012838), Train RMSE: 0.1670, Val RMSE: 0.1097, ATE: 0.1554, RPE: 0.0180, Grad Norm: 77.1562, Time: 220.85s, ETA: 00:25:45, LR: 0.000050
+Saved best model to models/fusion/fusion_model_best.pth
+Saved epoch 3 model to models/fusion/fusion_model_epoch3.pth
+fusion Epochs:  30%|█████████████████████████████████████████████▎                                                                                                         | 3/10 [11:15<26:15, 225.02s/itEpoch 4/10: Train Loss: 4.215900 (Unweighted: 0.023929), Val Loss: 2.513319 (Unweighted: 0.012570), Train RMSE: 0.1472, Val RMSE: 0.1070, ATE: 0.1532, RPE: 0.0199, Grad Norm: 80.7446, Time: 220.36s, ETA: 00:22:02, LR: 0.000005
+Saved best model to models/fusion/fusion_model_best.pth
+Saved epoch 4 model to models/fusion/fusion_model_epoch4.pth
+fusion Epochs:  40%|████████████████████████████████████████████████████████████▍                                                                                          | 4/10 [15:00<22:28, 224.73s/itEpoch 5/10: Train Loss: 3.359676 (Unweighted: 0.019644), Val Loss: 2.603112 (Unweighted: 0.013019), Train RMSE: 0.1328, Val RMSE: 0.1095, ATE: 0.1563, RPE: 0.0198, Grad Norm: 76.9808, Time: 220.38s, ETA: 00:18:21, LR: 0.000005
+Saved epoch 5 model to models/fusion/fusion_model_epoch5.pth
+fusion Epochs:  50%|███████████████████████████████████████████████████████████████████████████▌                                                                           | 5/10 [18:42<18:38, 223.78s/itEpoch 6/10: Train Loss: 3.285218 (Unweighted: 0.019272), Val Loss: 2.700547 (Unweighted: 0.013507), Train RMSE: 0.1313, Val RMSE: 0.1110, ATE: 0.1599, RPE: 0.0215, Grad Norm: 79.8604, Time: 220.87s, ETA: 00:14:43, LR: 0.000001
+Saved epoch 6 model to models/fusion/fusion_model_epoch6.pth
+fusion Epochs:  60%|██████████████████████████████████████████████████████████████████████████████████████████▌                                                            | 6/10 [22:24<14:53, 223.38s/itEpoch 7/10: Train Loss: 3.175459 (Unweighted: 0.018722), Val Loss: 2.481161 (Unweighted: 0.012410), Train RMSE: 0.1293, Val RMSE: 0.1061, ATE: 0.1534, RPE: 0.0217, Grad Norm: 74.6984, Time: 220.51s, ETA: 00:11:01, LR: 0.000001
+Saved best model to models/fusion/fusion_model_best.pth
+Saved epoch 7 model to models/fusion/fusion_model_epoch7.pth
+fusion Epochs:  70%|█████████████████████████████████████████████████████████████████████████████████████████████████████████▋                                             | 7/10 [26:09<11:11, 223.74s/itEpoch 8/10: Train Loss: 3.177954 (Unweighted: 0.018734), Val Loss: 2.625264 (Unweighted: 0.013130), Train RMSE: 0.1294, Val RMSE: 0.1086, ATE: 0.1576, RPE: 0.0219, Grad Norm: 76.6682, Time: 220.59s, ETA: 00:07:21, LR: 0.000000
+Saved epoch 8 model to models/fusion/fusion_model_epoch8.pth
+fusion Epochs:  80%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▊                              | 8/10 [29:51<07:26, 223.29s/itEpoch 9/10: Train Loss: 3.148359 (Unweighted: 0.018586), Val Loss: 2.417993 (Unweighted: 0.012094), Train RMSE: 0.1287, Val RMSE: 0.1047, ATE: 0.1510, RPE: 0.0230, Grad Norm: 74.7324, Time: 220.88s, ETA: 00:03:40, LR: 0.000000
+Saved best model to models/fusion/fusion_model_best.pth
+Saved epoch 9 model to models/fusion/fusion_model_epoch9.pth
+fusion Epochs:  90%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▉               | 9/10 [33:36<03:43, 223.79s/itEpoch 10/10: Train Loss: 3.151221 (Unweighted: 0.018600), Val Loss: 2.573377 (Unweighted: 0.012871), Train RMSE: 0.1288, Val RMSE: 0.1082, ATE: 0.1560, RPE: 0.0220, Grad Norm: 73.8541, Time: 221.25s, ETA: 00:00:00, LR: 0.000000
+Saved epoch 10 model to models/fusion/fusion_model_epoch10.pth
+fusion Epochs: 100%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 10/10 [37:19<00:00, 223.95s/it]
+

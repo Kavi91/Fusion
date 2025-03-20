@@ -105,7 +105,7 @@ class FusionDataset(Dataset):
         
         # Convert 15-element absolute poses to 6-DoF relative poses
         poses = torch.from_numpy(poses).float()  # (seq_len, 15)
-        print(f"Pose shape in __getitem__: {poses.shape}")
+        #print(f"Pose shape in __getitem__: {poses.shape}")
         
         # Extract 6-DoF: Euler angles (0:3) and translation (3:6)
         poses_6dof = poses[:, :6]  # (seq_len, 6) - [x, y, z, tx, ty, tz]
@@ -114,7 +114,7 @@ class FusionDataset(Dataset):
         relative_poses = poses_6dof[1:] - poses_6dof[:-1]  # (seq_len-1, 6)
         relative_poses = torch.cat([torch.zeros(1, 6), relative_poses], dim=0)  # (seq_len, 6)
         
-        print(f"Relative poses shape: {relative_poses.shape}")
+        #print(f"Relative poses shape: {relative_poses.shape}")
         return rgb_high, lidar_combined, relative_poses
 
 if __name__ == "__main__":

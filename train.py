@@ -12,7 +12,7 @@ from deepvo.data_helper import get_data_info, ImageSequenceDataset, SortedRandom
 from lorcon_lo.utils.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
 from models import DeepVO, LoRCoNLO, WeightedLoss, FusionLIVO
 from fusion_dataset import FusionDataset
-from torch.cuda.amp import GradScaler, autocast
+from torch.amp import GradScaler, autocast  # Updated import for PyTorch 2.4+
 
 def compute_ate(gt_poses, pred_poses):
     gt_poses, pred_poses = np.array(gt_poses), np.array(pred_poses)
@@ -100,7 +100,7 @@ def train_model(model_name, config, device):
     optimizer = optim.Adam(model.parameters(), lr=section.get("optim", {}).get("lr", 0.0005))
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1)
     criterion = WeightedLoss().to(device)
-    scaler = GradScaler() if section.get("use_grad_scaler", False) else None
+    scaler = GradScaler('cuda') if section.get("use_grad_scaler", False) else None  # Updated for PyTorch 2.4+
     
     epochs = section["epochs"]
     min_loss_v = float("inf")
@@ -113,12 +113,13 @@ def train_model(model_name, config, device):
         model_dir = os.path.join(section.get("cp_folder", "checkpoints"), config["dataset"], str(len(next(os.walk(section.get("cp_folder", "checkpoints")))[1])).zfill(4))
     os.makedirs(model_dir, exist_ok=True)
     
-    for epoch in tqdm(range(epochs), desc=f"{model_name} Epochs"):
+    for epoch in tqdm(range(epochs), desc=f"{model_name} Epochs", position=0):
         t_start = time.time()
         model.train()
         train_loss, train_loss_unweighted, rmse_train, grad_norm = 0.0, 0.0, 0.0, 0.0
         
-        for batch in train_dl:
+        train_pbar = tqdm(train_dl, desc=f"Epoch {epoch+1} Training", leave=False, position=1)
+        for batch in train_pbar:
             inputs = batch[1] if model_name == "deepvo" else batch[0] if model_name == "lorcon_lo" else (batch[0], batch[1])
             targets = batch[2]
             if model_name == "fusion":
@@ -130,15 +131,15 @@ def train_model(model_name, config, device):
             optimizer.zero_grad()
             
             if section.get("use_autocast", False):
-                with autocast():
+                with autocast('cuda'):  # Updated for PyTorch 2.4+
                     if model_name == "fusion":
-                        outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                        outputs = model(rgb_high, lidar_combined)
                     else:
                         outputs = model(inputs)
                     loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
             else:
                 if model_name == "fusion":
-                    outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                    outputs = model(rgb_high, lidar_combined)
                 else:
                     outputs = model(inputs)
                 loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
@@ -154,6 +155,10 @@ def train_model(model_name, config, device):
             train_loss_unweighted += compute_unweighted_mse(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
             rmse_train += WeightedLoss.RMSEError(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets).item()
             grad_norm += sum(p.grad.norm(2).item() for p in model.parameters() if p.grad is not None)
+            
+            train_pbar.set_postfix({'loss': f"{loss.item():.6f}"})
+        
+        train_pbar.close()
         
         scheduler.step()
         
@@ -175,15 +180,15 @@ def train_model(model_name, config, device):
                     inputs = inputs.float().to(device)
                 targets = targets.float().to(device)
                 if section.get("use_autocast", False):
-                    with autocast():
+                    with autocast('cuda'):  # Updated for PyTorch 2.4+
                         if model_name == "fusion":
-                            outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                            outputs = model(rgb_high, lidar_combined)
                         else:
                             outputs = model(inputs)
                         loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
                 else:
                     if model_name == "fusion":
-                        outputs = model(rgb_high, lidar_combined)  # Unpack explicitly
+                        outputs = model(rgb_high, lidar_combined)
                     else:
                         outputs = model(inputs)
                     loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
@@ -247,7 +252,7 @@ def train_model(model_name, config, device):
 
 def main():
     try:
-        with open("config.yaml", "r") as f:
+        with open("/home/krkavinda/Fusion/config.yaml", "r") as f:
             config = yaml.safe_load(f)
     except Exception as e:
         print(f"Failed to load config.yaml: {e}")
