@@ -82,26 +82,64 @@ def clean_unused_lidar():
                 print(f"LiDAR {lidar_path} not found")
 
 def check_file_counts():
-    """Count files in image_02 and velodyne directories for each sequence."""
+    """Count files in image_02, velodyne, and preprocessed directories for each sequence."""
     seq_frame = {
         '00': ['000', '004540'], '01': ['000', '001100'], '02': ['000', '004660'], '03': ['000', '000800'],
         '04': ['000', '000270'], '05': ['000', '002760'], '06': ['000', '001100'], '07': ['000', '001100'],
-        '08': ['001100', '005170'], '09': ['000', '001590'], '10': ['000', '001200']
+        '08': ['000', '004070'], '09': ['000', '001590'], '10': ['000', '001200']
     }
-    base_dir = par.data_dir + '/sequences/'
+    base_dir = '/home/krkavinda/Datasets/KITTI_raw/kitti_data/sequences/'  # Image directory
+    lidar_base_dir = '/home/krkavinda/Datasets/KITTI_raw/kitti_data/scan/'  # LiDAR base directory
+    preprocessed_base_dir = '/home/krkavinda/Datasets/KITTI_raw/kitti_data/preprocessed_data/'  # Preprocessed data directory
+
     print("\n=== File Count Check ===")
-    for dir_id in seq_frame.keys():
-        img_dir_path = f'{base_dir}{dir_id}/image_02/'
-        lidar_dir_path = f'{base_dir}{dir_id}/velodyne/'
+    for seq_id in seq_frame.keys():
+        # Image directory for the sequence
+        img_dir_path = f'{base_dir}{seq_id}/image_02/'
+        # LiDAR directory for the sequence
+        lidar_dir_path = f'{lidar_base_dir}{seq_id}/velodyne/'
+        # Preprocessed directories for the sequence
+        depth_dir_path = f'{preprocessed_base_dir}{seq_id}/depth/'
+        intensity_dir_path = f'{preprocessed_base_dir}{seq_id}/intensity/'
+        normal_dir_path = f'{preprocessed_base_dir}{seq_id}/normal/'
         
+        # Count image files
         img_count = len(glob.glob(f'{img_dir_path}*.png')) if os.path.exists(img_dir_path) else 0
-        lidar_count = len(glob.glob(f'{lidar_dir_path}*.bin')) if os.path.exists(lidar_dir_path) else 0
         
-        print(f"Sequence {dir_id}:")
+        # Get frame range for the sequence
+        start_frame, end_frame = seq_frame[seq_id]
+        start_idx = int(start_frame)
+        end_idx = int(end_frame) + 1  # +1 because range is inclusive
+        
+        # Count LiDAR files within the frame range
+        lidar_count = 0
+        if os.path.exists(lidar_dir_path):
+            for frame_idx in range(start_idx, end_idx):
+                lidar_file = f'{lidar_dir_path}{frame_idx:06d}.bin'
+                if os.path.exists(lidar_file):
+                    lidar_count += 1
+        
+        # Count preprocessed files (depth, intensity, normal)
+        depth_count = len(glob.glob(f'{depth_dir_path}*.npy')) if os.path.exists(depth_dir_path) else 0
+        intensity_count = len(glob.glob(f'{intensity_dir_path}*.npy')) if os.path.exists(intensity_dir_path) else 0
+        normal_count = len(glob.glob(f'{normal_dir_path}*.npy')) if os.path.exists(normal_dir_path) else 0
+        
+        print(f"Sequence {seq_id}:")
         print(f"  Images (image_02): {img_count} files")
         print(f"  LiDAR (velodyne): {lidar_count} files")
+        print(f"  Depth (preprocessed): {depth_count} files")
+        print(f"  Intensity (preprocessed): {intensity_count} files")
+        print(f"  Normal (preprocessed): {normal_count} files")
+        
+        # Check for mismatches
         if img_count != lidar_count:
             print(f"  WARNING: Mismatch detected! Images: {img_count}, LiDAR: {lidar_count}")
+        if img_count != depth_count:
+            print(f"  WARNING: Mismatch detected! Images: {img_count}, Depth: {depth_count}")
+        if img_count != intensity_count:
+            print(f"  WARNING: Mismatch detected! Images: {img_count}, Intensity: {intensity_count}")
+        if img_count != normal_count:
+            print(f"  WARNING: Mismatch detected! Images: {img_count}, Normal: {normal_count}")
 
 def create_pose_data():
     info = {
@@ -172,16 +210,16 @@ def calculate_rgb_mean_std(image_path_list, minus_point_5=False):
 if __name__ == '__main__':
     # Separate calls for cleaning
     #clean_unused_images()  # Clean camera images
-    clean_unused_lidar()   # Clean LiDAR data
+    #clean_unused_lidar()   # Clean LiDAR data
     #create_pose_data()     # Generate pose .npy files
     
     # Calculate RGB mean/std for remaining images
-    train_video = ['00', '02', '08', '09', '06', '04', '10']
+    train_video = ["00", "02",  "04", "05", "06", "08", "09"]
     image_path_list = []
     for folder in train_video:
         image_path_list += glob.glob(f'{par.data_dir}/sequences/{folder}/image_02/*.png')
     
-   # calculate_rgb_mean_std(image_path_list, minus_point_5=True)
+    #calculate_rgb_mean_std(image_path_list, minus_point_5=True)
     
     # Final check of file counts
     check_file_counts()

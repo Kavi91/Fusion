@@ -17,7 +17,7 @@ def gen_spherical_data(scan_folder, rgb_folder, dst_folder, dataset, fov_up, fov
 
 if __name__ == "__main__":
     # Load config file from specified path
-    config_filename = '/home/kavi/Fusion/config.yaml'
+    config_filename = '/home/krkavinda/Fusion/config.yaml'
     with open(config_filename, 'r') as f:
         config = yaml.load(f, Loader=yaml.SafeLoader)
 
@@ -25,7 +25,7 @@ if __name__ == "__main__":
     lorcon_config = config["lorcon_lo"]
     preprocessed_folder = lorcon_config["preprocessed_folder"]
     scan_base_folder = lorcon_config["scan_folder"]
-    rgb_base_folder = "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences"  # Correct RGB location
+    rgb_base_folder = "/home/krkavinda/Datasets/KITTI_raw/kitti_data/sequences"  # Correct RGB location
     data_seqs = lorcon_config["data_seqs"].split(",")
     dataset = config["dataset"]
 

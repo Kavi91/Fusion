@@ -12,7 +12,7 @@ from deepvo.data_helper import get_data_info, ImageSequenceDataset, SortedRandom
 from lorcon_lo.utils.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
 from models import DeepVO, LoRCoNLO, WeightedLoss, FusionLIVO
 from fusion_dataset import FusionDataset
-from torch.amp import GradScaler, autocast  # Updated import for PyTorch 2.4+
+from torch.amp import GradScaler, autocast
 
 def compute_ate(gt_poses, pred_poses):
     gt_poses, pred_poses = np.array(gt_poses), np.array(pred_poses)
@@ -97,13 +97,16 @@ def train_model(model_name, config, device):
     train_dl = DataLoader(train_dataset, batch_size=section["batch_size"], shuffle=True, num_workers=config["num_workers"])
     valid_dl = DataLoader(valid_dataset, batch_size=section["batch_size"], shuffle=False, num_workers=config["num_workers"])
     
-    optimizer = optim.Adam(model.parameters(), lr=section.get("optim", {}).get("lr", 0.0005))
-    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1)
+    optimizer = optim.Adam(model.parameters(), lr=section.get("optim", {}).get("lr", 0.0005), weight_decay=5e-4)
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
     criterion = WeightedLoss().to(device)
-    scaler = GradScaler('cuda') if section.get("use_grad_scaler", False) else None  # Updated for PyTorch 2.4+
+    scaler = GradScaler('cuda') if section.get("use_grad_scaler", False) else None
     
     epochs = section["epochs"]
     min_loss_v = float("inf")
+    patience = section.get("patience", 8)  # Reference patience from config
+    early_stop_counter = 0
+    min_delta = 0.01
     
     if model_name == "deepvo":
         model_dir = "models/deepvo"
@@ -123,28 +126,30 @@ def train_model(model_name, config, device):
             inputs = batch[1] if model_name == "deepvo" else batch[0] if model_name == "lorcon_lo" else (batch[0], batch[1])
             targets = batch[2]
             if model_name == "fusion":
-                rgb_high = inputs[0].float().to(device)
-                lidar_combined = inputs[1].float().to(device)
+                rgb_high = inputs[0].float().to(device)  # (B, seq_len, 3, 184, 608)
+                # lidar_combined includes rgb_low (if enabled), depth, intensity, normals
+                lidar_combined = inputs[1].float().to(device)  # (B, seq_len, C, 64, 900), C depends on enabled modalities
             else:
                 inputs = inputs.float().to(device)
             targets = targets.float().to(device)
             optimizer.zero_grad()
             
             if section.get("use_autocast", False):
-                with autocast('cuda'):  # Updated for PyTorch 2.4+
+                with autocast('cuda'):
                     if model_name == "fusion":
                         outputs = model(rgb_high, lidar_combined)
                     else:
                         outputs = model(inputs)
-                    loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
+                    loss = criterion(outputs, targets)
             else:
                 if model_name == "fusion":
                     outputs = model(rgb_high, lidar_combined)
                 else:
                     outputs = model(inputs)
-                loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
+                loss = criterion(outputs, targets)
             
             (scaler.scale(loss) if scaler else loss).backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=10.0)
             if scaler:
                 scaler.step(optimizer)
                 scaler.update()
@@ -154,7 +159,7 @@ def train_model(model_name, config, device):
             train_loss += loss.item()
             train_loss_unweighted += compute_unweighted_mse(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
             rmse_train += WeightedLoss.RMSEError(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets).item()
-            grad_norm += sum(p.grad.norm(2).item() for p in model.parameters() if p.grad is not None)
+            grad_norm += sum(p.grad.norm(2).item() for p in model.parameters() if p.grad is not None) or 0.0
             
             train_pbar.set_postfix({'loss': f"{loss.item():.6f}"})
         
@@ -180,18 +185,18 @@ def train_model(model_name, config, device):
                     inputs = inputs.float().to(device)
                 targets = targets.float().to(device)
                 if section.get("use_autocast", False):
-                    with autocast('cuda'):  # Updated for PyTorch 2.4+
+                    with autocast('cuda'):
                         if model_name == "fusion":
                             outputs = model(rgb_high, lidar_combined)
                         else:
                             outputs = model(inputs)
-                        loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
+                        loss = criterion(outputs, targets)
                 else:
                     if model_name == "fusion":
                         outputs = model(rgb_high, lidar_combined)
                     else:
                         outputs = model(inputs)
-                    loss = criterion(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
+                    loss = criterion(outputs, targets)
                 val_loss += loss.item()
                 val_loss_unweighted += compute_unweighted_mse(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets)
                 rmse_val += WeightedLoss.RMSEError(outputs, targets[:, 1:, :] if model_name == "deepvo" else targets).item()
@@ -224,12 +229,22 @@ def train_model(model_name, config, device):
               f"Val RMSE: {avg_rmse_val:.4f}, ATE: {ate:.4f}, RPE: {rpe:.4f}, Grad Norm: {avg_grad_norm:.4f}, "
               f"Time: {epoch_duration:.2f}s, ETA: {eta_str}, LR: {optimizer.param_groups[0]['lr']:.6f}")
         
+        # Early stopping check
+        if avg_val_loss < min_loss_v - min_delta:
+            min_loss_v = avg_val_loss
+            early_stop_counter = 0
+            best_path = os.path.join(model_dir, f"{model_name}_model_best.pth")
+            torch.save(model.state_dict(), best_path)
+            print(f"Saved best model to {best_path}")
+        else:
+            early_stop_counter += 1
+            print(f"Early stopping counter: {early_stop_counter}/{patience}")
+        
+        if early_stop_counter >= patience:
+            print(f"Early stopping triggered after {epoch+1} epochs due to no improvement in validation loss.")
+            break
+        
         try:
-            if avg_val_loss < min_loss_v:
-                min_loss_v = avg_val_loss
-                best_path = os.path.join(model_dir, f"{model_name}_model_best.pth")
-                torch.save(model.state_dict(), best_path)
-                print(f"Saved best model to {best_path}")
             if model_name == "deepvo" or model_name == "fusion":
                 epoch_path = os.path.join(model_dir, f"{model_name}_model_epoch{epoch+1}.pth")
                 torch.save(model.state_dict(), epoch_path)

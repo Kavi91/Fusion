@@ -227,8 +227,10 @@ class FusionLIVO(nn.Module):
         
         self.deepvo = DeepVO(rgb_height, rgb_width, batchNorm=True)
         self.deepvo.conv1 = conv(self.deepvo.batchNorm, 3, 64, kernel_size=7, stride=2, dropout=self.deepvo.conv_dropout[0])
+        self.deepvo.conv_dropout = [0.2] * len(self.deepvo.conv_dropout)
         self.lorconlo = LoRCoNLO(batch_size=config["fusion"]["batch_size"], batchNorm=False)
         self.lorconlo.simple_conv1 = nn.Conv2d(in_channels=input_channels, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
+        self.lorconlo.conv_dropout = [0.2] * 6
         
         self.fpn_rgb = nn.ModuleList([
             nn.Conv2d(256, 256, 1),

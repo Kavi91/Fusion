@@ -1,0 +1,67 @@
+=== File Count Check ===
+Sequence 00:
+  Images (image_02): 4541 files
+  LiDAR (velodyne): 4541 files
+  Depth (preprocessed): 4541 files
+  Intensity (preprocessed): 4541 files
+  Normal (preprocessed): 4541 files
+Sequence 01:
+  Images (image_02): 1101 files
+  LiDAR (velodyne): 1101 files
+  Depth (preprocessed): 1101 files
+  Intensity (preprocessed): 1101 files
+  Normal (preprocessed): 1101 files
+Sequence 02:
+  Images (image_02): 4661 files
+  LiDAR (velodyne): 4661 files
+  Depth (preprocessed): 4661 files
+  Intensity (preprocessed): 4661 files
+  Normal (preprocessed): 4661 files
+Sequence 03:
+  Images (image_02): 801 files
+  LiDAR (velodyne): 801 files
+  Depth (preprocessed): 801 files
+  Intensity (preprocessed): 801 files
+  Normal (preprocessed): 801 files
+Sequence 04:
+  Images (image_02): 271 files
+  LiDAR (velodyne): 271 files
+  Depth (preprocessed): 271 files
+  Intensity (preprocessed): 271 files
+  Normal (preprocessed): 271 files
+Sequence 05:
+  Images (image_02): 2761 files
+  LiDAR (velodyne): 2761 files
+  Depth (preprocessed): 2761 files
+  Intensity (preprocessed): 2761 files
+  Normal (preprocessed): 2761 files
+Sequence 06:
+  Images (image_02): 1101 files
+  LiDAR (velodyne): 1101 files
+  Depth (preprocessed): 1101 files
+  Intensity (preprocessed): 1101 files
+  Normal (preprocessed): 1101 files
+Sequence 07:
+  Images (image_02): 1101 files
+  LiDAR (velodyne): 1101 files
+  Depth (preprocessed): 1101 files
+  Intensity (preprocessed): 1101 files
+  Normal (preprocessed): 1101 files
+Sequence 08:
+  Images (image_02): 4071 files
+  LiDAR (velodyne): 4071 files
+  Depth (preprocessed): 4071 files
+  Intensity (preprocessed): 4071 files
+  Normal (preprocessed): 4071 files
+Sequence 09:
+  Images (image_02): 1591 files
+  LiDAR (velodyne): 1591 files
+  Depth (preprocessed): 1591 files
+  Intensity (preprocessed): 1591 files
+  Normal (preprocessed): 1591 files
+Sequence 10:
+  Images (image_02): 1201 files
+  LiDAR (velodyne): 1201 files
+  Depth (preprocessed): 1201 files
+  Intensity (preprocessed): 1201 files
+  Normal (preprocessed): 1201 files
