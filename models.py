@@ -202,11 +202,6 @@ class LoRCoNLO(nn.Module):
         x = F.leaky_relu(x, 0.1)
         return x
     
-    def fc_part(self, x):
-        x = F.leaky_relu(x, 0.2)
-        x = self.fc1(x)
-        return x
-    
     def weight_parameters(self):
         return [param for name, param in self.named_parameters() if 'weight' in name]
 
@@ -214,7 +209,7 @@ class LoRCoNLO(nn.Module):
         return [param for name, param in self.named_parameters() if 'bias' in name]
 
 class FusionLIVO(nn.Module):
-    def __init__(self, config, rgb_height=184, rgb_width=608, lidar_height=64, lidar_width=900, rnn_hidden_size=1024):
+    def __init__(self, config, rgb_height=256, rgb_width=832, lidar_height=64, lidar_width=900, rnn_hidden_size=256):
         super(FusionLIVO, self).__init__()
         
         use_depth = config["fusion"]["modalities"]["use_depth"]
@@ -224,50 +219,61 @@ class FusionLIVO(nn.Module):
         input_channels = (3 if use_rgb_low else 0) + (1 if use_depth else 0) + (1 if use_intensity else 0) + (3 if use_normals else 0)
         if input_channels == 0:
             raise ValueError("No modalities selected for FusionLIVO input")
+        print(f"FusionLIVO input channels: {input_channels} (Depth: {use_depth}, Intensity: {use_intensity}, Normals: {use_normals}, RGB Low: {use_rgb_low})")
         
         self.deepvo = DeepVO(rgb_height, rgb_width, batchNorm=True)
         self.deepvo.conv1 = conv(self.deepvo.batchNorm, 3, 64, kernel_size=7, stride=2, dropout=self.deepvo.conv_dropout[0])
-        self.lorconlo = LoRCoNLO(batch_size=32, batchNorm=False)
+        self.lorconlo = LoRCoNLO(batch_size=config["fusion"]["batch_size"], batchNorm=False)
         self.lorconlo.simple_conv1 = nn.Conv2d(in_channels=input_channels, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
         
+        # Add dropout to conv layers
+        self.deepvo.conv_dropout = [config["fusion"]["dropout"]] * len(self.deepvo.conv_dropout)
+        self.lorconlo.conv_dropout = [config["fusion"]["dropout"]] * 6
+        
         self.fpn_rgb = nn.ModuleList([
-            nn.Conv2d(256, 256, 1),  # conv3_1
-            nn.Conv2d(512, 256, 1),  # conv4_1
-            nn.Conv2d(1024, 256, 1)  # conv6
+            nn.Conv2d(256, 256, 1),
+            nn.Conv2d(512, 256, 1),
+            nn.Conv2d(1024, 256, 1)
         ])
         self.fpn_rgb_upsample = nn.ModuleList([
-            nn.Upsample(size=(12, 38), mode='bilinear', align_corners=False),  # Match conv4_1
-            nn.Upsample(size=(23, 76), mode='bilinear', align_corners=False),  # Match conv3_1
-            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)  # Final size
+            nn.Upsample(size=(16, 52), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(32, 104), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
         
         self.fpn_lidar = nn.ModuleList([
-            nn.Conv2d(128, 256, 1),  # simple_conv3
-            nn.Conv2d(256, 256, 1),  # simple_conv4
-            nn.Conv2d(128, 256, 1)   # encode_image
+            nn.Conv2d(128, 256, 1),
+            nn.Conv2d(256, 256, 1),
+            nn.Conv2d(128, 256, 1)
         ])
         self.fpn_lidar_upsample = nn.ModuleList([
-            nn.Upsample(size=(32, 55), mode='bilinear', align_corners=False),  # Match simple_conv4
-            nn.Upsample(size=(64, 111), mode='bilinear', align_corners=False), # Match simple_conv3
-            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)  # Final size
+            nn.Upsample(size=(64, 111), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(32, 55), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
-        
-        self.attention = nn.Sequential(
-            nn.Conv2d(512, 1, 1),
-            nn.Sigmoid()
-        )
         
         self.fusion_conv = nn.Conv2d(512, 256, 3, padding=1)
         self.pool = nn.AdaptiveAvgPool2d(1)
-        self.rnn = nn.LSTM(256, rnn_hidden_size, num_layers=2, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(rnn_hidden_size * 2, 6)
+        self.rnn = nn.LSTM(256, rnn_hidden_size, num_layers=1, batch_first=True, bidirectional=True)
+        self.fc = nn.Linear(rnn_hidden_size * 2, 7)  # 3 for translation, 4 for quaternion
+        
+        # Initialize weights to smaller values to reduce numerical instability
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu', a=0.1)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.LSTM):
+                for name, param in m.named_parameters():
+                    if 'weight' in name:
+                        nn.init.orthogonal_(param, gain=0.1)
+                    elif 'bias' in name:
+                        nn.init.constant_(param, 0)
     
     def forward(self, rgb_high, lidar_combined):
-        # rgb_high: (batch, seq_len, 3, 184, 608)
         batch_size, seq_len, c, h, w = rgb_high.shape
-        rgb_high = rgb_high.view(batch_size * seq_len, c, h, w)  # (64, 3, 184, 608)
+        rgb_high = rgb_high.view(batch_size * seq_len, c, h, w)
         
-        # Process RGB through DeepVO conv layers
         conv1_out = self.deepvo.conv1(rgb_high)
         conv2_out = self.deepvo.conv2(conv1_out)
         conv3_out = self.deepvo.conv3(conv2_out)
@@ -277,73 +283,88 @@ class FusionLIVO(nn.Module):
         conv5_out = self.deepvo.conv5(conv4_1_out)
         conv5_1_out = self.deepvo.conv5_1(conv5_out)
         conv6_out = self.deepvo.conv6(conv5_1_out)
+        if torch.isnan(conv6_out).any() or torch.isinf(conv6_out).any():
+            raise ValueError("NaN or Inf detected in conv6_out")
         
         rgb_features = [conv3_1_out, conv4_1_out, conv6_out]
         
-        # FPN processing for RGB
         rgb_fpn = [self.fpn_rgb[i](rgb_features[i]) for i in range(3)]
         rgb_fpn[1] = rgb_fpn[1] + self.fpn_rgb_upsample[0](rgb_fpn[2])
+        if torch.isnan(rgb_fpn[1]).any() or torch.isinf(rgb_fpn[1]).any():
+            raise ValueError("NaN or Inf detected in rgb_fpn[1]")
         rgb_fpn[0] = rgb_fpn[0] + self.fpn_rgb_upsample[1](rgb_fpn[1])
+        if torch.isnan(rgb_fpn[0]).any() or torch.isinf(rgb_fpn[0]).any():
+            raise ValueError("NaN or Inf detected in rgb_fpn[0]")
         rgb_fused = self.fpn_rgb_upsample[2](rgb_fpn[0])
+        if torch.isnan(rgb_fused).any() or torch.isinf(rgb_fused).any():
+            raise ValueError("NaN or Inf detected in rgb_fused")
         rgb_fused = rgb_fused.view(batch_size, seq_len, rgb_fused.size(1), rgb_fused.size(2), rgb_fused.size(3))
         
-        # lidar_combined: (batch, seq_len, input_channels, 64, 900)
         batch_size, seq_len, c_lidar, h_lidar, w_lidar = lidar_combined.shape
         lidar_combined = lidar_combined.view(batch_size * seq_len, c_lidar, h_lidar, w_lidar)
         
-        # Process LiDAR through LoRCoNLO conv layers
-        conv1_out = self.lorconlo.simple_conv1(lidar_combined)
-        conv1_out = self.lorconlo.conv_bn1(conv1_out)
-        conv1_out = F.leaky_relu(conv1_out, 0.1)
-        conv2_out = self.lorconlo.simple_conv2(conv1_out)
-        conv2_out = self.lorconlo.conv_bn2(conv2_out)
-        conv2_out = F.leaky_relu(conv2_out, 0.1)
-        conv3_out = self.lorconlo.simple_conv3(conv2_out)
-        conv3_out = self.lorconlo.conv_bn3(conv3_out)
-        conv3_out = F.leaky_relu(conv3_out, 0.1)
-        conv4_out = self.lorconlo.simple_conv4(conv3_out)
-        conv4_out = self.lorconlo.conv_bn4(conv4_out)
-        conv4_out = F.leaky_relu(conv4_out, 0.1)
-        conv5_out = self.lorconlo.simple_conv5(conv4_out)
-        conv5_out = self.lorconlo.conv_bn5(conv5_out)
-        conv5_out = F.leaky_relu(conv5_out, 0.1)
-        conv6_out = self.lorconlo.simple_conv6(conv5_out)
-        conv6_out = self.lorconlo.conv_bn6(conv6_out)
-        conv6_out = F.leaky_relu(conv6_out, 0.1)
+        lidar_conv1 = self.lorconlo.simple_conv1(lidar_combined)
+        lidar_conv2 = self.lorconlo.simple_conv2(self.lorconlo.conv_bn1(lidar_conv1))
+        lidar_conv3 = self.lorconlo.simple_conv3(self.lorconlo.conv_bn2(lidar_conv2))
+        lidar_conv4 = self.lorconlo.simple_conv4(self.lorconlo.conv_bn3(lidar_conv3))
+        lidar_conv5 = self.lorconlo.simple_conv5(self.lorconlo.conv_bn4(lidar_conv4))
+        lidar_conv6 = self.lorconlo.simple_conv6(self.lorconlo.conv_bn5(lidar_conv5))
+        if torch.isnan(lidar_conv6).any() or torch.isinf(lidar_conv6).any():
+            raise ValueError("NaN or Inf detected in lidar_conv6")
         
-        lidar_features = [conv3_out, conv4_out, conv6_out]
+        lidar_features = [lidar_conv3, lidar_conv4, lidar_conv6]
         
-        # FPN processing for LiDAR
         lidar_fpn = [self.fpn_lidar[i](lidar_features[i]) for i in range(3)]
-        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[0](lidar_fpn[2])  # (64, 256, 32, 55)
-        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[1](lidar_fpn[1])  # (64, 256, 64, 111)
-        lidar_fused = self.fpn_lidar_upsample[2](lidar_fpn[0])  # (64, 256, 64, 900)
+        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[1](lidar_fpn[2])
+        if torch.isnan(lidar_fpn[1]).any() or torch.isinf(lidar_fpn[1]).any():
+            raise ValueError("NaN or Inf detected in lidar_fpn[1]")
+        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[0](lidar_fpn[1])
+        if torch.isnan(lidar_fpn[0]).any() or torch.isinf(lidar_fpn[0]).any():
+            raise ValueError("NaN or Inf detected in lidar_fpn[0]")
+        lidar_fused = self.fpn_lidar_upsample[2](lidar_fpn[0])
+        if torch.isnan(lidar_fused).any() or torch.isinf(lidar_fused).any():
+            raise ValueError("NaN or Inf detected in lidar_fused")
         lidar_fused = lidar_fused.view(batch_size, seq_len, lidar_fused.size(1), lidar_fused.size(2), lidar_fused.size(3))
         
-        # Fusion
         fused = torch.cat([rgb_fused, lidar_fused], dim=2)
-        attn = self.attention(fused)
-        fused = fused * attn
+        fused = fused.view(batch_size * seq_len, fused.size(2), fused.size(3), fused.size(4))
         fused = self.fusion_conv(fused)
+        if torch.isnan(fused).any() or torch.isinf(fused).any():
+            raise ValueError("NaN or Inf detected in fused after fusion_conv")
+        fused = fused.view(batch_size, seq_len, fused.size(1), fused.size(2), fused.size(3))
         
-        # Reduce spatial dimensions
-        batch, seq_len, c, h, w = fused.shape
         fused = self.pool(fused)
-        fused = fused.view(batch, seq_len, 256)
+        fused = fused.view(batch_size, seq_len, 256)
         
         out, _ = self.rnn(fused)
         out = self.fc(out)
+        max_translation = 10.0
+        translation = torch.clamp(out[:, :, :3] / max_translation, -1.0, 1.0) * max_translation
+        quaternion = F.normalize(out[:, :, 3:] + 1e-8, p=2, dim=-1)
+        out = torch.cat([translation, quaternion], dim=-1)
+        if torch.isnan(out).any() or torch.isinf(out).any():
+            raise ValueError("NaN or Inf detected in model output")
         return out
 
 class WeightedLoss(nn.Module):
-    def __init__(self, learn_hyper_params=True, device="cpu"):
+    def __init__(self, w_rot=1.0, learn_hyper_params=True, device="cpu"):
         super(WeightedLoss, self).__init__()
-        self.w_rot = 100
+        self.w_rot = w_rot
 
     def forward(self, pred, target):
         L_t = F.mse_loss(pred[:, :, :3], target[:, :, :3])
-        L_r = F.mse_loss(pred[:, :, 3:], target[:, :, 3:])
+        q_pred = pred[:, :, 3:]
+        q_target = target[:, :, 3:]
+        q_pred = F.normalize(q_pred + 1e-8, p=2, dim=-1)
+        q_target = F.normalize(q_target + 1e-8, p=2, dim=-1)
+        if torch.isnan(q_pred).any() or torch.isinf(q_pred).any():
+            raise ValueError("NaN or Inf detected in q_pred")
+        if torch.isnan(q_target).any() or torch.isinf(q_target).any():
+            raise ValueError("NaN or Inf detected in q_target")
+        L_r = 1.0 - torch.abs(torch.sum(q_pred * q_target, dim=-1)).mean()
         loss = L_t + L_r * self.w_rot
+        if torch.isnan(loss).any() or torch.isinf(loss).any():
+            raise ValueError("NaN or Inf detected in loss")
         return loss
     
     @staticmethod

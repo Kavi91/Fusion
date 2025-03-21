@@ -1,0 +1,4 @@
+1. run the updated new codes
+2. generate RGB for all training sequences.
+3. reclaculate image means
+4. check file counts
