@@ -2,214 +2,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from torch.nn.init import kaiming_normal_, orthogonal_
 import numpy as np
-
-def conv(batchNorm, in_planes, out_planes, kernel_size=3, stride=1, dropout=0):
-    if batchNorm:
-        return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=False),
-            nn.BatchNorm2d(out_planes),
-            nn.LeakyReLU(0.1, inplace=True),
-            nn.Dropout(dropout)
-        )
-    else:
-        return nn.Sequential(
-            nn.Conv2d(in_planes, out_planes, kernel_size=kernel_size, stride=stride, padding=(kernel_size-1)//2, bias=True),
-            nn.LeakyReLU(0.1, inplace=True),
-            nn.Dropout(dropout)
-        )
-
-class DeepVO(nn.Module):
-    def __init__(self, imsize1, imsize2, batchNorm=True, conv_dropout=None, rnn_hidden_size=1000, 
-                 rnn_dropout_out=0.5, rnn_dropout_between=0, clip=None):
-        super(DeepVO, self).__init__()
-        self.batchNorm = batchNorm
-        self.clip = clip
-        self.conv_dropout = conv_dropout if conv_dropout else [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5]
-        self.conv1 = conv(self.batchNorm, 6, 64, kernel_size=7, stride=2, dropout=self.conv_dropout[0])
-        self.conv2 = conv(self.batchNorm, 64, 128, kernel_size=5, stride=2, dropout=self.conv_dropout[1])
-        self.conv3 = conv(self.batchNorm, 128, 256, kernel_size=5, stride=2, dropout=self.conv_dropout[2])
-        self.conv3_1 = conv(self.batchNorm, 256, 256, kernel_size=3, stride=1, dropout=self.conv_dropout[3])
-        self.conv4 = conv(self.batchNorm, 256, 512, kernel_size=3, stride=2, dropout=self.conv_dropout[4])
-        self.conv4_1 = conv(self.batchNorm, 512, 512, kernel_size=3, stride=1, dropout=self.conv_dropout[5])
-        self.conv5 = conv(self.batchNorm, 512, 512, kernel_size=3, stride=2, dropout=self.conv_dropout[6])
-        self.conv5_1 = conv(self.batchNorm, 512, 512, kernel_size=3, stride=1, dropout=self.conv_dropout[7])
-        self.conv6 = conv(self.batchNorm, 512, 1024, kernel_size=3, stride=2, dropout=self.conv_dropout[8])
-
-        __tmp = Variable(torch.zeros(1, 6, imsize1, imsize2))
-        __tmp = self.encode_image(__tmp)
-
-        self.rnn = nn.LSTM(
-            input_size=int(np.prod(__tmp.size())),
-            hidden_size=rnn_hidden_size,
-            num_layers=2,
-            dropout=rnn_dropout_between,
-            batch_first=True
-        )
-        self.rnn_drop_out = nn.Dropout(rnn_dropout_out)
-        self.linear = nn.Linear(in_features=rnn_hidden_size, out_features=6)
-
-        for m in self.modules():
-            if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d) or isinstance(m, nn.Linear):
-                kaiming_normal_(m.weight.data)
-                if m.bias is not None:
-                    m.bias.data.zero_()
-            elif isinstance(m, nn.LSTM):
-                kaiming_normal_(m.weight_ih_l0)
-                kaiming_normal_(m.weight_hh_l0)
-                m.bias_ih_l0.data.zero_()
-                m.bias_hh_l0.data.zero_()
-                n = m.bias_hh_l0.size(0)
-                start, end = n//4, n//2
-                m.bias_hh_l0.data[start:end].fill_(1.)
-                kaiming_normal_(m.weight_ih_l1)
-                kaiming_normal_(m.weight_hh_l1)
-                m.bias_ih_l1.data.zero_()
-                m.bias_hh_l1.data.zero_()
-                n = m.bias_hh_l1.size(0)
-                start, end = n//4, n//2
-                m.bias_hh_l1.data[start:end].fill_(1.)
-            elif isinstance(m, nn.BatchNorm2d):
-                m.weight.data.fill_(1)
-                m.bias.data.zero_()
-
-    def forward(self, x):
-        x = torch.cat((x[:, :-1], x[:, 1:]), dim=2)
-        batch_size = x.size(0)
-        seq_len = x.size(1)
-        x = x.view(batch_size * seq_len, x.size(2), x.size(3), x.size(4))
-        x = self.encode_image(x)
-        x = x.view(batch_size, seq_len, -1)
-        out, hc = self.rnn(x)
-        out = self.rnn_drop_out(out)
-        out = self.linear(out)
-        return out
-
-    def encode_image(self, x):
-        out_conv2 = self.conv2(self.conv1(x))
-        out_conv3 = self.conv3_1(self.conv3(out_conv2))
-        out_conv4 = self.conv4_1(self.conv4(out_conv3))
-        out_conv5 = self.conv5_1(self.conv5(out_conv4))
-        out_conv6 = self.conv6(out_conv5)
-        return out_conv6
-
-    def weight_parameters(self):
-        return [param for name, param in self.named_parameters() if 'weight' in name]
-
-    def bias_parameters(self):
-        return [param for name, param in self.named_parameters() if 'bias' in name]
-
-    def get_loss(self, x, y):
-        predicted = self.forward(x)
-        y = y[:, 1:, :]
-        angle_loss = torch.nn.functional.mse_loss(predicted[:,:,:3], y[:,:,:3])
-        translation_loss = torch.nn.functional.mse_loss(predicted[:,:,3:], y[:,:,3:])
-        loss = (100 * angle_loss + translation_loss)
-        return loss
-
-    def step(self, x, y, optimizer):
-        optimizer.zero_grad()
-        loss = self.get_loss(x, y)
-        loss.backward()
-        if self.clip is not None:
-            torch.nn.utils.clip_grad_norm_(self.rnn.parameters(), self.clip)
-        optimizer.step()
-        return loss
-
-class LoRCoNLO(nn.Module):
-    def __init__(self, batch_size, batchNorm=True):
-        super(LoRCoNLO, self).__init__()
-        self.batch_size = batch_size
-        
-        self.simple_conv1 = nn.Conv2d(in_channels=10, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
-        self.simple_conv2 = nn.Conv2d(32, 64, 3, (1, 2), (1, 0))
-        self.simple_conv3 = nn.Conv2d(64, 128, 3, (1, 2), (1, 0))
-        self.simple_conv4 = nn.Conv2d(128, 256, 3, (2, 2), (1, 0))
-        self.simple_conv5 = nn.Conv2d(256, 512, 3, (2, 2), (1, 0))
-        self.simple_conv6 = nn.Conv2d(512, 128, 1, 1, (1, 0))
-        
-        self.rnn = nn.LSTM(
-            input_size=128 * 306,
-            hidden_size=1024,
-            num_layers=4,
-            dropout=0,
-            batch_first=True,
-            bidirectional=True
-        )
-        self.rnn_drop_out = nn.Dropout(0.4)
-        
-        self.fc1 = nn.Linear(2048, 6)
-        
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=(1, 2), padding=(1, 0))
-        
-        self.conv_bn1 = nn.BatchNorm2d(32)
-        self.conv_bn2 = nn.BatchNorm2d(64)
-        self.conv_bn3 = nn.BatchNorm2d(128)
-        self.conv_bn4 = nn.BatchNorm2d(256)
-        self.conv_bn5 = nn.BatchNorm2d(512)
-        self.conv_bn6 = nn.BatchNorm2d(128)
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        rnn_size = x.size(1)
-        
-        x = x.view(batch_size * rnn_size, x.size(2), x.size(3), x.size(4))
-        
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.maxpool(x)
-        
-        x = self.encode_image(x)
-        
-        x = x.view(batch_size, rnn_size, -1)
-        
-        x, hc = self.rnn(x)
-
-        x = self.rnn_drop_out(x)
-        
-        x = x.reshape(batch_size * rnn_size, -1)
-        
-        output = self.fc_part(x)
-        
-        output = output.reshape(batch_size, rnn_size, -1)
-
-        return output
-    
-    def encode_image(self, x):
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv1(x)
-        x = self.conv_bn1(x)
-        x = F.leaky_relu(x, 0.1)
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv2(x)
-        x = self.conv_bn2(x)
-        x = F.leaky_relu(x, 0.1)
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv3(x)
-        x = self.conv_bn3(x)
-        x = F.leaky_relu(x, 0.1)
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv4(x)
-        x = self.conv_bn4(x)
-        x = F.leaky_relu(x, 0.1)
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv5(x)
-        x = self.conv_bn5(x)
-        x = F.leaky_relu(x, 0.1)
-        x = torch.nn.functional.pad(input=x, pad=(1, 1, 0, 0), mode='circular')
-        x = self.simple_conv6(x)
-        x = self.conv_bn6(x)
-        x = F.leaky_relu(x, 0.1)
-        return x
-    
-    def weight_parameters(self):
-        return [param for name, param in self.named_parameters() if 'weight' in name]
-
-    def bias_parameters(self):
-        return [param for name, param in self.named_parameters() if 'bias' in name]
+from flownet_models.FlowNetS import FlowNetS  # Import the class directly
+from flownet_models.util import conv  # Import conv function
 
 class FusionLIVO(nn.Module):
-    def __init__(self, config, rgb_height=256, rgb_width=832, lidar_height=64, lidar_width=900, rnn_hidden_size=256):
+    def __init__(self, config, rgb_height=64, rgb_width=900, lidar_height=64, lidar_width=900, rnn_hidden_size=256):
         super(FusionLIVO, self).__init__()
         
         use_depth = config["fusion"]["modalities"]["use_depth"]
@@ -219,45 +17,69 @@ class FusionLIVO(nn.Module):
         input_channels = (3 if use_rgb_low else 0) + (1 if use_depth else 0) + (1 if use_intensity else 0) + (3 if use_normals else 0)
         if input_channels == 0:
             raise ValueError("No modalities selected for FusionLIVO input")
-        print(f"FusionLIVO input channels: {input_channels} (Depth: {use_depth}, Intensity: {use_intensity}, Normals: {use_normals}, RGB Low: {use_rgb_low})")
+        #print(f"FusionLIVO input channels: {input_channels}")
         
-        self.deepvo = DeepVO(rgb_height, rgb_width, batchNorm=True)
-        self.deepvo.conv1 = conv(self.deepvo.batchNorm, 3, 64, kernel_size=7, stride=2, dropout=self.deepvo.conv_dropout[0])
-        self.lorconlo = LoRCoNLO(batch_size=config["fusion"]["batch_size"], batchNorm=False)
-        self.lorconlo.simple_conv1 = nn.Conv2d(in_channels=input_channels, out_channels=32, kernel_size=3, stride=(1, 2), padding=(1, 0))
+        # Use FlowNetS for both RGB and LiDAR with pretrained weights
+        pretrained_path = "/home/kavi/Fusion/flownet_models/pytorch/flownets_bn_EPE2.459.pth"
+        self.flownet_rgb = FlowNetS(batchNorm=True)  # 2 RGB frames (3 channels each, total 6)
+        self.flownet_lidar = FlowNetS(batchNorm=True)  # 2 LiDAR frames (input_channels * 2)
         
-        # Add dropout to conv layers
-        self.deepvo.conv_dropout = [config["fusion"]["dropout"]] * len(self.deepvo.conv_dropout)
-        self.lorconlo.conv_dropout = [config["fusion"]["dropout"]] * 6
+        # Adjust input channels for flownet_lidar
+        self.flownet_lidar.conv1 = conv(
+            self.flownet_lidar.batchNorm,
+            input_channels * 2,
+            64,
+            kernel_size=7,
+            stride=2
+        )
         
+        # Load pretrained weights
+        loaded_data = torch.load(pretrained_path, map_location='cpu', weights_only=False)
+        if isinstance(loaded_data, dict) and 'state_dict' in loaded_data:
+            state_dict = loaded_data['state_dict']
+        else:
+            state_dict = loaded_data
+        #print("State dict keys:", list(state_dict.keys()))  # Debug print to inspect keys
+        
+        # Find the conv1 weight key
+        conv1_key = 'conv1.0.weight' if 'conv1.0.weight' in state_dict else None
+        if conv1_key is None:
+            conv1_key = next((key for key in state_dict.keys() if 'conv1' in key.lower()), None)
+            if conv1_key is None:
+                raise KeyError("Could not find 'conv1' weight in pretrained state_dict. Available keys: " + str(list(state_dict.keys())))
+        
+        # Check input channels and reinitialize if necessary
+        if state_dict[conv1_key].shape[1] != 6:
+            state_dict[conv1_key] = torch.randn(64, 6, 7, 7)  # Reinitialize for RGB
+        self.flownet_rgb.load_state_dict(state_dict, strict=False)
+        if state_dict[conv1_key].shape[1] != input_channels * 2:
+            state_dict[conv1_key] = torch.randn(64, input_channels * 2, 7, 7)  # Reinitialize for LiDAR
+        self.flownet_lidar.load_state_dict(state_dict, strict=False)
+        
+        # Simplified FPN for multi-scale fusion
         self.fpn_rgb = nn.ModuleList([
+            nn.Conv2d(2, 256, 1),  # FlowNet outputs 2 channels (flow)
             nn.Conv2d(256, 256, 1),
-            nn.Conv2d(512, 256, 1),
-            nn.Conv2d(1024, 256, 1)
         ])
         self.fpn_rgb_upsample = nn.ModuleList([
-            nn.Upsample(size=(16, 52), mode='bilinear', align_corners=False),
-            nn.Upsample(size=(32, 104), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(16, 225), mode='bilinear', align_corners=False),  # Match rgb_fpn[0] dimensions
             nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
         
         self.fpn_lidar = nn.ModuleList([
-            nn.Conv2d(128, 256, 1),
+            nn.Conv2d(2, 256, 1),
             nn.Conv2d(256, 256, 1),
-            nn.Conv2d(128, 256, 1)
         ])
         self.fpn_lidar_upsample = nn.ModuleList([
-            nn.Upsample(size=(64, 111), mode='bilinear', align_corners=False),
-            nn.Upsample(size=(32, 55), mode='bilinear', align_corners=False),
+            nn.Upsample(size=(16, 225), mode='bilinear', align_corners=False),  # Match lidar_fpn[0] dimensions
             nn.Upsample(size=(lidar_height, lidar_width), mode='bilinear', align_corners=False)
         ])
         
         self.fusion_conv = nn.Conv2d(512, 256, 3, padding=1)
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.rnn = nn.LSTM(256, rnn_hidden_size, num_layers=1, batch_first=True, bidirectional=True)
-        self.fc = nn.Linear(rnn_hidden_size * 2, 7)  # 3 for translation, 4 for quaternion
+        self.fc = nn.Linear(rnn_hidden_size * 2, 7)
         
-        # Initialize weights to smaller values to reduce numerical instability
         for m in self.modules():
             if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='leaky_relu', a=0.1)
@@ -272,78 +94,71 @@ class FusionLIVO(nn.Module):
     
     def forward(self, rgb_high, lidar_combined):
         batch_size, seq_len, c, h, w = rgb_high.shape
-        rgb_high = rgb_high.view(batch_size * seq_len, c, h, w)
+        #print("rgb_high shape:", rgb_high.shape)  # [8, 5, 3, 64, 900]
+        #print("lidar_combined shape:", lidar_combined.shape)  # [8, 5, 4, 64, 900]
         
-        conv1_out = self.deepvo.conv1(rgb_high)
-        conv2_out = self.deepvo.conv2(conv1_out)
-        conv3_out = self.deepvo.conv3(conv2_out)
-        conv3_1_out = self.deepvo.conv3_1(conv3_out)
-        conv4_out = self.deepvo.conv4(conv3_1_out)
-        conv4_1_out = self.deepvo.conv4_1(conv4_out)
-        conv5_out = self.deepvo.conv5(conv4_1_out)
-        conv5_1_out = self.deepvo.conv5_1(conv5_out)
-        conv6_out = self.deepvo.conv6(conv5_1_out)
-        if torch.isnan(conv6_out).any() or torch.isinf(conv6_out).any():
-            raise ValueError("NaN or Inf detected in conv6_out")
+        # Process RGB with FlowNet
+        rgb_high_flat = rgb_high.view(batch_size * seq_len, c, h, w)  # Shape: [40, 3, 64, 900]
+        rgb_pairs = torch.cat((rgb_high_flat[:-1], rgb_high_flat[1:]), dim=1)  # Shape: [39, 6, 64, 900]
+        #print("rgb_pairs shape:", rgb_pairs.shape)
+        rgb_flow_output = self.flownet_rgb(rgb_pairs)
+        rgb_flow = rgb_flow_output[0] if isinstance(rgb_flow_output, tuple) else rgb_flow_output  # Shape: [39, 2, 16, 225]
+        #print("rgb_flow shape:", rgb_flow.shape)
+        num_pairs = batch_size * (seq_len - 1)  # 8 * (5-1) = 32
+        if rgb_flow.size(0) > num_pairs:
+            rgb_flow = rgb_flow[:num_pairs]  # Shape: [32, 2, 16, 225]
+        elif rgb_flow.size(0) < num_pairs:
+            padding = torch.zeros(num_pairs - rgb_flow.size(0), *rgb_flow.shape[1:], device=rgb_flow.device)
+            rgb_flow = torch.cat([rgb_flow, padding], dim=0)
+        rgb_flow_flat = rgb_flow  # Shape: [32, 2, 16, 225]
+        #print("rgb_flow_flat for FPN:", rgb_flow_flat.shape)
         
-        rgb_features = [conv3_1_out, conv4_1_out, conv6_out]
+        # Process LiDAR with FlowNet
+        lidar_combined_flat = lidar_combined.view(batch_size * seq_len, -1, h, w)  # Shape: [40, 4, 64, 900]
+        lidar_pairs = torch.cat((lidar_combined_flat[:-1], lidar_combined_flat[1:]), dim=1)  # Shape: [39, 8, 64, 900]
+        #print("lidar_pairs shape:", lidar_pairs.shape)
+        lidar_flow_output = self.flownet_lidar(lidar_pairs)
+        lidar_flow = lidar_flow_output[0] if isinstance(lidar_flow_output, tuple) else lidar_flow_output  # Shape: [39, 2, 16, 225]
+        #print("lidar_flow shape:", lidar_flow.shape)
+        if lidar_flow.size(0) > num_pairs:
+            lidar_flow = lidar_flow[:num_pairs]  # Shape: [32, 2, 16, 225]
+        elif lidar_flow.size(0) < num_pairs:
+            padding = torch.zeros(num_pairs - lidar_flow.size(0), *lidar_flow.shape[1:], device=lidar_flow.device)
+            lidar_flow = torch.cat([lidar_flow, padding], dim=0)
+        lidar_flow_flat = lidar_flow  # Shape: [32, 2, 16, 225]
+        #print("lidar_flow_flat for FPN:", lidar_flow_flat.shape)
         
-        rgb_fpn = [self.fpn_rgb[i](rgb_features[i]) for i in range(3)]
-        rgb_fpn[1] = rgb_fpn[1] + self.fpn_rgb_upsample[0](rgb_fpn[2])
-        if torch.isnan(rgb_fpn[1]).any() or torch.isinf(rgb_fpn[1]).any():
-            raise ValueError("NaN or Inf detected in rgb_fpn[1]")
-        rgb_fpn[0] = rgb_fpn[0] + self.fpn_rgb_upsample[1](rgb_fpn[1])
-        if torch.isnan(rgb_fpn[0]).any() or torch.isinf(rgb_fpn[0]).any():
-            raise ValueError("NaN or Inf detected in rgb_fpn[0]")
-        rgb_fused = self.fpn_rgb_upsample[2](rgb_fpn[0])
-        if torch.isnan(rgb_fused).any() or torch.isinf(rgb_fused).any():
-            raise ValueError("NaN or Inf detected in rgb_fused")
-        rgb_fused = rgb_fused.view(batch_size, seq_len, rgb_fused.size(1), rgb_fused.size(2), rgb_fused.size(3))
+        # FPN for RGB
+        rgb_features = [rgb_flow_flat]  # Shape: [32, 2, 16, 225]
+        rgb_fpn = [self.fpn_rgb[0](rgb_features[0])]  # Shape: [32, 256, 16, 225]
+        rgb_fpn.append(self.fpn_rgb[1](rgb_fpn[0]))  # Shape: [32, 256, 16, 225]
+        rgb_fpn[0] = rgb_fpn[0] + self.fpn_rgb_upsample[0](rgb_fpn[1])  # Shape: [32, 256, 16, 225]
+        rgb_fused = self.fpn_rgb_upsample[1](rgb_fpn[0])  # Shape: [32, 256, 64, 900]
+        rgb_fused = rgb_fused.view(batch_size, seq_len-1, rgb_fused.size(1), rgb_fused.size(2), rgb_fused.size(3))  # Shape: [8, 4, 256, 64, 900]
+        #print("rgb_fused shape:", rgb_fused.shape)
         
-        batch_size, seq_len, c_lidar, h_lidar, w_lidar = lidar_combined.shape
-        lidar_combined = lidar_combined.view(batch_size * seq_len, c_lidar, h_lidar, w_lidar)
+        # FPN for LiDAR
+        lidar_features = [lidar_flow_flat]  # Shape: [32, 2, 16, 225]
+        lidar_fpn = [self.fpn_lidar[0](lidar_features[0])]  # Shape: [32, 256, 16, 225]
+        lidar_fpn.append(self.fpn_lidar[1](lidar_fpn[0]))  # Shape: [32, 256, 16, 225]
+        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[0](lidar_fpn[1])  # Shape: [32, 256, 16, 225]
+        lidar_fused = self.fpn_lidar_upsample[1](lidar_fpn[0])  # Shape: [32, 256, 64, 900]
+        lidar_fused = lidar_fused.view(batch_size, seq_len-1, lidar_fused.size(1), lidar_fused.size(2), lidar_fused.size(3))  # Shape: [8, 4, 256, 64, 900]
+        #print("lidar_fused shape:", lidar_fused.shape)
         
-        lidar_conv1 = self.lorconlo.simple_conv1(lidar_combined)
-        lidar_conv2 = self.lorconlo.simple_conv2(self.lorconlo.conv_bn1(lidar_conv1))
-        lidar_conv3 = self.lorconlo.simple_conv3(self.lorconlo.conv_bn2(lidar_conv2))
-        lidar_conv4 = self.lorconlo.simple_conv4(self.lorconlo.conv_bn3(lidar_conv3))
-        lidar_conv5 = self.lorconlo.simple_conv5(self.lorconlo.conv_bn4(lidar_conv4))
-        lidar_conv6 = self.lorconlo.simple_conv6(self.lorconlo.conv_bn5(lidar_conv5))
-        if torch.isnan(lidar_conv6).any() or torch.isinf(lidar_conv6).any():
-            raise ValueError("NaN or Inf detected in lidar_conv6")
-        
-        lidar_features = [lidar_conv3, lidar_conv4, lidar_conv6]
-        
-        lidar_fpn = [self.fpn_lidar[i](lidar_features[i]) for i in range(3)]
-        lidar_fpn[1] = lidar_fpn[1] + self.fpn_lidar_upsample[1](lidar_fpn[2])
-        if torch.isnan(lidar_fpn[1]).any() or torch.isinf(lidar_fpn[1]).any():
-            raise ValueError("NaN or Inf detected in lidar_fpn[1]")
-        lidar_fpn[0] = lidar_fpn[0] + self.fpn_lidar_upsample[0](lidar_fpn[1])
-        if torch.isnan(lidar_fpn[0]).any() or torch.isinf(lidar_fpn[0]).any():
-            raise ValueError("NaN or Inf detected in lidar_fpn[0]")
-        lidar_fused = self.fpn_lidar_upsample[2](lidar_fpn[0])
-        if torch.isnan(lidar_fused).any() or torch.isinf(lidar_fused).any():
-            raise ValueError("NaN or Inf detected in lidar_fused")
-        lidar_fused = lidar_fused.view(batch_size, seq_len, lidar_fused.size(1), lidar_fused.size(2), lidar_fused.size(3))
-        
-        fused = torch.cat([rgb_fused, lidar_fused], dim=2)
-        fused = fused.view(batch_size * seq_len, fused.size(2), fused.size(3), fused.size(4))
-        fused = self.fusion_conv(fused)
-        if torch.isnan(fused).any() or torch.isinf(fused).any():
-            raise ValueError("NaN or Inf detected in fused after fusion_conv")
-        fused = fused.view(batch_size, seq_len, fused.size(1), fused.size(2), fused.size(3))
-        
-        fused = self.pool(fused)
-        fused = fused.view(batch_size, seq_len, 256)
-        
-        out, _ = self.rnn(fused)
-        out = self.fc(out)
+        # Fusion and LSTM
+        fused = torch.cat([rgb_fused, lidar_fused], dim=2)  # Shape: [8, 4, 512, 64, 900]
+        fused = fused.view(batch_size * (seq_len-1), fused.size(2), fused.size(3), fused.size(4))  # Shape: [32, 512, 64, 900]
+        fused = self.fusion_conv(fused)  # Shape: [32, 256, 64, 900]
+        fused = fused.view(batch_size, seq_len-1, fused.size(1), fused.size(2), fused.size(3))  # Shape: [8, 4, 256, 64, 900]
+        fused = self.pool(fused)  # Shape: [8, 4, 256, 1, 1]
+        fused = fused.view(batch_size, seq_len-1, 256)  # Shape: [8, 4, 256]
+        out, _ = self.rnn(fused)  # Shape: [8, 4, rnn_hidden_size*2]
+        out = self.fc(out)  # Shape: [8, 4, 7]
         max_translation = 10.0
         translation = torch.clamp(out[:, :, :3] / max_translation, -1.0, 1.0) * max_translation
         quaternion = F.normalize(out[:, :, 3:] + 1e-8, p=2, dim=-1)
-        out = torch.cat([translation, quaternion], dim=-1)
-        if torch.isnan(out).any() or torch.isinf(out).any():
-            raise ValueError("NaN or Inf detected in model output")
+        out = torch.cat([translation, quaternion], dim=-1)  # Shape: [8, 4, 7]
         return out
 
 class WeightedLoss(nn.Module):
@@ -351,16 +166,12 @@ class WeightedLoss(nn.Module):
         super(WeightedLoss, self).__init__()
         self.w_rot = w_rot
 
-    def forward(self, pred, target):
+    def forward(self, pred, target, rgb_high=None):
         L_t = F.mse_loss(pred[:, :, :3], target[:, :, :3])
         q_pred = pred[:, :, 3:]
         q_target = target[:, :, 3:]
         q_pred = F.normalize(q_pred + 1e-8, p=2, dim=-1)
         q_target = F.normalize(q_target + 1e-8, p=2, dim=-1)
-        if torch.isnan(q_pred).any() or torch.isinf(q_pred).any():
-            raise ValueError("NaN or Inf detected in q_pred")
-        if torch.isnan(q_target).any() or torch.isinf(q_target).any():
-            raise ValueError("NaN or Inf detected in q_target")
         L_r = 1.0 - torch.abs(torch.sum(q_pred * q_target, dim=-1)).mean()
         loss = L_t + L_r * self.w_rot
         if torch.isnan(loss).any() or torch.isinf(loss).any():

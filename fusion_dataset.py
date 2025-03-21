@@ -6,12 +6,13 @@ import numpy as np
 import glob
 from torchvision import transforms
 import torch.nn.functional as F
+from scipy.ndimage import gaussian_filter  # Move import to top
 
 class FusionDataset(Dataset):
     def __init__(self, config, seqs, seq_len, use_augmentation=False):
         self.rgb_high_dir = config["deepvo"]["image_dir"]
         self.lidar_dir = config["lorcon_lo"]["preprocessed_folder"]
-        self.pose_dir = "/home/kavi/Datasets/KITTI_raw/kitti_data/poses_7dof/"
+        self.pose_dir = config["deepvo"]["pose_dir"]  # Use config value
         self.calib_dir = config["deepvo"]["calib_folder"]
         self.seqs = seqs
         self.seq_len = seq_len
@@ -27,12 +28,13 @@ class FusionDataset(Dataset):
         
         transform_list = [
             transforms.ToPILImage(),
-            transforms.Resize((256, 832)),
+            transforms.Resize((64, 900)),  # Resize RGB to match LiDAR resolution
         ]
         if self.use_augmentation:
             transform_list.extend([
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
                 transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomRotation(degrees=5),
             ])
         transform_list.extend([
             transforms.ToTensor(),
@@ -46,8 +48,9 @@ class FusionDataset(Dataset):
         ]
         if self.use_augmentation:
             transform_list_low.extend([
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+                transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
                 transforms.RandomHorizontalFlip(p=0.5),
+                transforms.RandomRotation(degrees=5),
             ])
         transform_list_low.extend([
             transforms.ToTensor(),
@@ -55,7 +58,6 @@ class FusionDataset(Dataset):
         ])
         self.rgb_low_transform = transforms.Compose(transform_list_low)
         
-        # Store metadata instead of loading all files upfront
         self.sequence_lengths = {}
         self.total_length = 0
         for seq in seqs:
@@ -73,7 +75,6 @@ class FusionDataset(Dataset):
             self.sequence_lengths[seq] = min_len - seq_len
             self.total_length += min_len - seq_len
         
-        # Load calibration data (needed for all sequences)
         self.Tr_velo_to_cam2 = {}
         for seq in seqs:
             calib_path = os.path.join(self.calib_dir, f"{seq}.txt")
@@ -118,7 +119,6 @@ class FusionDataset(Dataset):
         return self.total_length
     
     def __getitem__(self, idx):
-        # Find the sequence and local index
         cumsum = 0
         seq = None
         local_idx = None
@@ -132,7 +132,6 @@ class FusionDataset(Dataset):
         if seq is None:
             raise IndexError(f"Index {idx} out of range for dataset length {self.total_length}")
         
-        # Load files for the sequence
         rgb_high_files = sorted(glob.glob(os.path.join(self.rgb_high_dir, seq, "image_02", "*.png")))
         depth_files = sorted(glob.glob(os.path.join(self.lidar_dir, seq, "depth", "*.npy"))) if self.use_depth else rgb_high_files
         intensity_files = sorted(glob.glob(os.path.join(self.lidar_dir, seq, "intensity", "*.npy"))) if self.use_intensity else rgb_high_files
@@ -141,7 +140,6 @@ class FusionDataset(Dataset):
         poses_path = os.path.join(self.pose_dir, f"{seq}.npy")
         poses_7dof = torch.from_numpy(np.load(poses_path)).float()
         
-        # Validate indices
         min_len = min(len(rgb_high_files), len(depth_files), len(intensity_files), len(normal_files), len(poses_7dof))
         if min_len <= self.seq_len:
             raise ValueError(f"Sequence {seq} has insufficient length: {min_len}")
@@ -153,7 +151,6 @@ class FusionDataset(Dataset):
             if rgb_idx != depth_idx or rgb_idx != pose_idx:
                 raise ValueError(f"Mismatch in indices at position {i} in sequence {seq}: RGB {rgb_idx}, Depth {depth_idx}, Pose {pose_idx}")
         
-        # Get the slice for the current index
         start_idx = local_idx
         end_idx = start_idx + self.seq_len
         if end_idx > min_len:
@@ -203,14 +200,24 @@ class FusionDataset(Dataset):
                 depth = torch.from_numpy(np.load(p))
                 if torch.isnan(depth).any() or torch.isinf(depth).any():
                     raise ValueError(f"NaN or Inf detected in depth map at {p}")
+                # Fill missing values using interpolation
+                mask = (depth == 0) | torch.isnan(depth)
+                if mask.any():
+                    depth[mask] = float('nan')
+                    depth_np = depth.numpy()
+                    depth_np = gaussian_filter(depth_np, sigma=1)
+                    depth = torch.from_numpy(depth_np)
                 depth = depth.transpose(0, 1) if depth.shape[0] == 900 else depth
+                if self.use_augmentation:
+                    depth = depth * torch.FloatTensor(depth.shape).uniform_(0.8, 1.2)
+                    depth += torch.randn_like(depth) * 0.05
                 depth_list.append(depth)
             depth = torch.stack(depth_list)
             if depth.shape[-1] != 900 or depth.shape[-2] != 64:
                 depth = F.interpolate(depth.unsqueeze(0), size=(64, 900), mode='nearest').squeeze(0)
                 if torch.isnan(depth).any() or torch.isinf(depth).any():
                     raise ValueError(f"NaN or Inf detected in depth map after interpolation at index {idx}")
-            depth = depth.unsqueeze(1)  # Shape: [seq_len, 1, H, W]
+            depth = depth.unsqueeze(1)  # Shape: [seq_len, 1, 64, 900]
             channels.append(depth)
         
         if self.use_intensity:
@@ -228,7 +235,7 @@ class FusionDataset(Dataset):
                 intensity = F.interpolate(intensity.unsqueeze(0), size=(64, 900), mode='nearest').squeeze(0)
                 if torch.isnan(intensity).any() or torch.isinf(intensity).any():
                     raise ValueError(f"NaN or Inf detected in intensity map after interpolation at index {idx}")
-            intensity = intensity.unsqueeze(1)  # Shape: [seq_len, 1, H, W]
+            intensity = intensity.unsqueeze(1)
             channels.append(intensity)
         
         if self.use_normals:
@@ -239,10 +246,9 @@ class FusionDataset(Dataset):
                 normals = torch.from_numpy(np.load(p))
                 if torch.isnan(normals).any() or torch.isinf(normals).any():
                     raise ValueError(f"NaN or Inf detected in normals map at {p}")
-                # Normals have shape [H, W, 3]; transpose to [3, H, W]
                 normals = normals.permute(2, 0, 1) if normals.shape[-1] == 3 else normals.transpose(0, 1)
                 normals_list.append(normals)
-            normals = torch.stack(normals_list)  # Shape: [seq_len, 3, H, W]
+            normals = torch.stack(normals_list)
             if normals.shape[-1] != 900 or normals.shape[-2] != 64:
                 normals = F.interpolate(normals, size=(64, 900), mode='nearest')
                 if torch.isnan(normals).any() or torch.isinf(normals).any():
@@ -251,14 +257,14 @@ class FusionDataset(Dataset):
         
         if not channels:
             raise ValueError("No modalities selected for lidar_combined")
-        lidar_combined = torch.cat(channels, dim=1)  # Shape: [seq_len, total_channels, H, W]
+        lidar_combined = torch.cat(channels, dim=1)
         if torch.isnan(lidar_combined).any() or torch.isinf(lidar_combined).any():
             raise ValueError(f"NaN or Inf detected in lidar_combined at index {idx}")
         
-        relative_poses = poses[1:] - poses[:-1]
+        relative_poses = poses[1:] - poses[:-1]  # Shape: [seq_len-1, 7]
+        # Do not add the initial zero pose, so the target matches the model's output
         if torch.isnan(relative_poses).any() or torch.isinf(relative_poses).any():
             raise ValueError(f"NaN or Inf detected in relative_poses at index {idx}")
-        relative_poses = torch.cat([torch.zeros(1, 7), relative_poses], dim=0)
         
         return rgb_high, lidar_combined, relative_poses
 

@@ -2,56 +2,30 @@
 dataset: "KITTI"
 device: "cuda:0"
 num_workers: 24                # Increased number of workers for faster data loading
-cuda_visible_devices: "0"       # Using one GPU (adjust if needed)
-wandb_project: "FusionLIVO-PC1"
+cuda_visible_devices: "0"      # Using one GPU (adjust if needed)
+wandb_project: "FusionLIVO->FlowNet"  # WandB project name
 
 # Modality flags
 use_camera: False
 use_lidar: False
 use_fusion: True
 
-# DeepVO settings
+# DeepVO settings (used for paths and image preprocessing)
 deepvo:
   image_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/sequences/"
-  pose_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
+  pose_dir: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses_7dof/"
   calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
   timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
-  train_data_info_path: "datainfo/train_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
-  valid_data_info_path: "datainfo/valid_df_t{}_v{}_p{}_seq{}x{}_sample{}.pickle"
-  train_video: ["00", "01", "02","03", "05", "04", "09"]
-  valid_video: ["08", "06", "07", "10"]
+  train_video: ["00", "01", "02", "05", "08", "09"]  # Training sequences
+  valid_video: ["04", "06", "07", "10"]              # Validation sequences
   resize_mode: "rescale"
-  img_h: 256
-  img_w: 832
+  img_h: 64
+  img_w: 900
   img_means: [-0.49866461753845215, -0.4985489547252655, -0.49856969714164734]
   img_stds: [0.0012165356893092394, 0.0012363927671685815, 0.001266363193280995]
   minus_point_5: True
-  seq_len: [5, 7]
-  sample_times: 3
-  batch_size: 64               # Increased batch size (since more GPU memory is available)
-  epochs: 5
-  rnn_hidden_size: 1000
-  conv_dropout: [0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.5]
-  rnn_dropout_out: 0.5
-  rnn_dropout_between: 0
-  clip: 10
-  batch_norm: True
-  optim:
-    opt: "Adagrad"
-    lr: 0.0005
-    weight_decay: 5e-4
-  scheduler:
-    step_size: 10
-    gamma: 0.1
-  grad_clip:
-    max_norm: 10.0
-  early_stopping:
-    patience: 8
-    min_delta: 0.01
-  pin_mem: True
-  model_path: "models/deepvo_model_best.pth"
 
-# LoRCoN-LO settings
+# LoRCoN-LO settings (used for LiDAR data paths)
 lorcon_lo:
   scan_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/scan"
   preprocessed_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/preprocessed_data/"
@@ -59,11 +33,6 @@ lorcon_lo:
   pose_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/poses/"
   calib_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/calib/"
   timestamp_folder: "/home/kavi/Datasets/KITTI_raw/kitti_data/timestamp_folder"
-  data_seqs: "00,01,02,03,04,05,06,07,08,09,10"
-  test_seqs: "08,06,07,10"
-  batch_size: 64              # Increased batch size
-  epochs: 5
-  rnn_size: 2
   image_width: 900
   image_height: 64
   fov_up: 3.0
@@ -74,57 +43,33 @@ lorcon_lo:
   depth_name: "depth"
   intensity_name: "intensity"
   normal_name: "normal"
-  dni_size: 5
-  normal_size: 3
-  log_epoch: 1
-  checkpoint_epoch: 10
-  from_checkpoint: False
-  is_same_dataset: True
-  log_folder: "runs"
-  cp_folder: "checkpoints"
-  checkpoint_path: "checkpoint.pth"
-  checkpoint_test_path: "0020/cp-0005.pt"
-  model_path: "models/lorcon_lo_model_best.pth"
-  optim:
-    opt: "Adam"
-    lr: 0.0005
-    weight_decay: 5e-4
-  scheduler:
-    step_size: 10
-    gamma: 0.1
-  grad_clip:
-    max_norm: 10.0
-  early_stopping:
-    patience: 8
-    min_delta: 0.01
 
 # Fusion settings (optimized for PC1 with 16GB GPU and 80GB RAM)
 fusion:
-  batch_size: 8            # Increased batch size; with 16GB GPU, this should be feasible using mixed precision
-  epochs: 50                # Reduced total epochs to help prevent overfitting
-  rnn_size: 2
+  batch_size: 8
+  epochs: 10
+  rnn_size: 5
   model_path: "models/fusion_model_best.pth"
-  rnn_hidden_size: 128
-  dropout: 0.6
-  use_autocast: False         # Enable mixed precision training to save memory and speed up computation
+  rnn_hidden_size: 256
+  dropout: 0.7
+  use_autocast: False
   use_grad_scaler: False
   use_augmentation: True
   w_rot: 1.0
-  step_size: 3              # Sliding window step size to reduce overlapping samples
   modalities:
     use_depth: True
-    use_intensity: True
+    use_intensity: False
     use_normals: True
     use_rgb_low: False
   optim:
     opt: "Adam"
-    lr: 0.001
-    weight_decay: 5e-4
+    lr: 0.0001  # Changed from 1e-4 to explicit float
+    weight_decay: 0.001  # Changed from 1e-3 to explicit float
   scheduler:
-    step_size: 5
+    step_size: 3
     gamma: 0.1
   grad_clip:
     max_norm: 0.5
   early_stopping:
-    patience: 5
+    patience: 3
     min_delta: 0.01

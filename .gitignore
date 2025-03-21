@@ -40,3 +40,11 @@ test_dump.txt
 results/
 runs/
 models/
+pretrained/pytorch/*.pth
+flownet_models/pytorch/flownets_from_caffe.pth
+.gitignore
+flownet_models/pytorch/flownets_bn_EPE2.459.pth
+.gitignore
+flownet_models/pytorch/flownetc_EPE1.766.pth
+.gitignore
+flownet_models/pytorch/flownets_EPE1.951.pth
