@@ -1,276 +1,216 @@
-import yaml
+#!/home/kavi/LO-env/bin/python3
 import torch
-import numpy as np
-import time
-from tqdm import tqdm
 from torch.utils.data import DataLoader
-import torch.optim as optim
-import os
-import wandb
-import glob
-from deepvo.data_helper import get_data_info, ImageSequenceDataset
-from deepvo.helper import eulerAnglesToRotationMatrix
-from lorcon_lo.utils.process_data import LoRCoNLODataset, count_seq_sizes, process_input_data
-from lorcon_lo.utils.common import get_original_poses, save_poses
-from lorcon_lo.utils.plot_utils import plot_gt, plot_results
-from models import DeepVO, LoRCoNLO, WeightedLoss
+import numpy as np
+import yaml
+import matplotlib.pyplot as plt
+from models import FusionLIVO
+from fusion_dataset import FusionDataset
+from tqdm import tqdm
 
-def compute_ate(gt_poses, pred_poses):
-    gt_poses = np.array(gt_poses)
-    pred_poses = np.array(pred_poses)
-    if gt_poses.shape != pred_poses.shape:
-        print(f"ATE Shape Mismatch: gt_poses {gt_poses.shape}, pred_poses {pred_poses.shape}")
-        return np.nan
-    return np.sqrt(np.mean(np.linalg.norm(gt_poses - pred_poses, axis=1) ** 2))
+# Function to compute ATE and RPE
+def compute_trajectory_metrics(pred_poses, gt_poses):
+    pred_poses = pred_poses.cpu().numpy()
+    gt_poses = gt_poses.cpu().numpy()
+    
+    pred_trans = pred_poses[:, :, :3]
+    gt_trans = gt_poses[:, :, :3]
+    pred_yaw = pred_poses[:, :, 3]
+    gt_yaw = gt_poses[:, :, 3]
+    
+    # ATE: Compute RMSE of translation differences
+    trans_diff = pred_trans - gt_trans
+    trans_diff = trans_diff.reshape(-1, 3)
+    ate = np.sqrt(np.mean(np.sum(trans_diff**2, axis=1)))
+    
+    # RPE: Compute relative pose errors between consecutive frames
+    rpe_trans = []
+    rpe_rot = []
+    for b in range(pred_poses.shape[0]):
+        for t in range(pred_poses.shape[1] - 1):
+            # Predicted relative pose
+            pred_trans1 = pred_trans[b, t]
+            pred_trans2 = pred_trans[b, t+1]
+            pred_yaw1 = pred_yaw[b, t]
+            pred_yaw2 = pred_yaw[b, t+1]
+            pred_rel_trans = pred_trans2 - pred_trans1
+            pred_rel_yaw = pred_yaw2 - pred_yaw1
+            
+            # Ground truth relative pose
+            gt_trans1 = gt_trans[b, t]
+            gt_trans2 = gt_trans[b, t+1]
+            gt_yaw1 = gt_yaw[b, t]
+            gt_yaw2 = gt_yaw[b, t+1]
+            gt_rel_trans = gt_trans2 - gt_trans1
+            gt_rel_yaw = gt_yaw2 - gt_yaw1
+            
+            # RPE translation
+            rpe_trans.append(np.linalg.norm(pred_rel_trans - gt_rel_trans))
+            
+            # RPE rotation: Compute angular difference (handle wrap-around)
+            yaw_diff = np.arctan2(np.sin(pred_rel_yaw - gt_rel_yaw), np.cos(pred_rel_yaw - gt_rel_yaw))
+            angle = np.abs(yaw_diff) * 180 / np.pi
+            rpe_rot.append(angle)
+    
+    rpe_trans = np.sqrt(np.mean(np.array(rpe_trans)**2))
+    rpe_rot = np.sqrt(np.mean(np.array(rpe_rot)**2))
+    
+    return ate, rpe_trans, rpe_rot
 
-def compute_rpe(gt_poses, pred_poses):
-    gt_poses = np.array(gt_poses)
-    pred_poses = np.array(pred_poses)
-    if gt_poses.shape != pred_poses.shape or gt_poses.shape[0] < 2:
-        print(f"RPE Shape Mismatch: gt_poses {gt_poses.shape}, pred_poses {pred_poses.shape}")
-        return np.nan
-    gt_rel = np.diff(gt_poses, axis=0)
-    pred_rel = np.diff(pred_poses, axis=0)
-    return np.sqrt(np.mean(np.linalg.norm(gt_rel - pred_rel, axis=1) ** 2))
-
-def main():
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)
-
-    device = torch.device(config["device"] if torch.cuda.is_available() else "cuda:1" if config["use_lidar"] else "cuda:0")
-    os.environ["CUDA_VISIBLE_DEVICES"] = config["cuda_visible_devices"]
-
-    if config["use_camera"]:
-        wandb.init(project="Fusion", name="DeepVO-Testing-0", config=config["deepvo"])
-
-        use_cuda = torch.cuda.is_available()
-        save_dir = 'result/'
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-
-        model = DeepVO(config["deepvo"]["img_h"], config["deepvo"]["img_w"], config["deepvo"]["batch_norm"])
-        if use_cuda:
-            model = model.cuda()
-            model.load_state_dict(torch.load(config["deepvo"]["model_path"]))
-        else:
-            model.load_state_dict(torch.load(config["deepvo"]["model_path"], map_location={'cuda:0': 'cpu'}))
-        print('Load model from: ', config["deepvo"]["model_path"])
-
-        n_workers = 1
-        seq_len = int((config["deepvo"]["seq_len"][0] + config["deepvo"]["seq_len"][1]) / 2)
-        overlap = seq_len - 1
-        print(f"seq_len = {seq_len}, overlap = {overlap}")
-        batch_size = config["deepvo"]["batch_size"]
-
-        print(f"Loaded deepvo config: {config['deepvo']}")
-
-        with open('test_dump.txt', 'w') as fd:
-            fd.write('\n' + '=' * 50 + '\n')
-
-            for test_video in config["deepvo"]["valid_video"]:
-                image_path = os.path.join(config["deepvo"]["image_dir"], f"{test_video}", "image_02")
-                print(f"Checking image path: {image_path}")
-                png_files = glob.glob(os.path.join(image_path, "*.png"))
-                jpg_files = glob.glob(os.path.join(image_path, "*.jpg"))
-                print(f"Found {len(png_files)} PNG files, {len(jpg_files)} JPG files")
-
-                gt_pose_raw = np.load(os.path.join(config["deepvo"]["pose_dir"], f"{test_video}.npy"))
-                print(f"Raw ground truth pose [0]: {gt_pose_raw[0]}")
-                gt_pose = gt_pose_raw[:, :6]  # [x, y, z, tx, ty, tz]
-                gt_pose_rel = np.diff(gt_pose, axis=0)
-                gt_pose = np.vstack(([0, 0, 0, 0, 0, 0], gt_pose_rel))  # 271 poses
-                print(f"Video {test_video}: {len(png_files)} frames, {len(gt_pose)} poses")
-
-                df = get_data_info(
-                    folder_list=[test_video],
-                    seq_len_range=[seq_len, seq_len],
-                    overlap=overlap,
-                    sample_times=1,
-                    shuffle=False,
-                    sort=False,
-                    config=config
-                )
-                print(f"Video {test_video}: Added {len(df)} sequences of length {seq_len}")
-                df = df.loc[df.seq_len == seq_len]
-                df.to_csv('test_df.csv')
-                dataset = ImageSequenceDataset(
-                    df, config["deepvo"]["resize_mode"],
-                    (config["deepvo"]["img_w"], config["deepvo"]["img_h"]),
-                    config["deepvo"]["img_means"], config["deepvo"]["img_stds"],
-                    config["deepvo"]["minus_point_5"],
-                    config=config
-                )
-                dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=n_workers, drop_last=False)
-
-                model.eval()
-                answer = [[0.0] * 6]  # Start with initial zero pose
-                st_t = time.time()
-                n_batch = len(dataloader)
-
-                print(f"First ground truth pose: {gt_pose[0]}")
-
-                for i, batch in enumerate(dataloader):
-                    print(f'Folder {test_video} batch {i}/{n_batch}', end='\r', flush=True)
-                    _, x, y = batch
-                    if use_cuda:
-                        x = x.cuda()
-                        y = y.cuda()
-                    batch_predict_pose = model.forward(x)
-
-                    if i == 0:
-                        print(f"Raw prediction for batch 0: {batch_predict_pose[0][0]}")
-                        print(f"Input shape to model: {x.shape}")
-                        print(f"Output shape from model: {batch_predict_pose.shape}")
-
-                    fd.write(f'Batch: {i}\n')
-                    for seq, predict_pose_seq in enumerate(batch_predict_pose):
-                        for pose_idx, pose in enumerate(predict_pose_seq):
-                            fd.write(f' {seq} {pose_idx} {pose}\n')
-                        answer.append(predict_pose_seq[0].data.cpu().numpy().tolist())  # First pose per sequence
-
-                if len(answer) != len(gt_pose):
-                    print(f"Adjusting answer length from {len(answer)} to {len(gt_pose)}")
-                    if len(answer) > len(gt_pose):
-                        answer = answer[:len(gt_pose)]
-                    else:
-                        answer.extend([[0.0] * 6] * (len(gt_pose) - len(answer)))
-
-                print(f'Folder {test_video} finish in {time.time() - st_t} sec')
-                print('len(answer): ', len(answer))
-                expected_len = len(glob.glob(os.path.join(config["deepvo"]["image_dir"], f"{test_video}/image_02/*.png")))
-                print('expect len: ', expected_len)
-                predict_time = time.time() - st_t
-                print('Predict use {} sec'.format(predict_time))
-                print(f"First predicted pose: {answer[1]}")  # First transition after initial zero
-
-                with open(f'{save_dir}/out_{test_video}.txt', 'w') as f:
-                    for pose in answer:
-                        if isinstance(pose, list):
-                            f.write(', '.join([str(p) for p in pose]))
-                        else:
-                            f.write(str(pose))
-                        f.write('\n')
-
-                loss = 0
-                for t in range(len(gt_pose)):
-                    angle_loss = np.sum((np.array(answer[t])[:3] - gt_pose[t, :3]) ** 2)
-                    translation_loss = np.sum((np.array(answer[t])[3:] - gt_pose[t, 3:]) ** 2)
-                    loss += (100 * angle_loss + translation_loss)
-                loss /= len(gt_pose)
-                print('Loss = ', loss)
-                print('=' * 50)
-
-                wandb.log({
-                    f"deepvo/test_loss_{test_video}": loss,
-                    f"deepvo/predict_time_{test_video}": predict_time,
-                    f"deepvo/predicted_pose_length_{test_video}": len(answer),
-                    f"deepvo/expected_pose_length_{test_video}": expected_len,
-                    f"deepvo/pose_length_mismatch_{test_video}": len(answer) != len(gt_pose)
-                })
-
-        fd.close()
-        wandb.finish()
-    if config["use_lidar"]:
-        # LoRCoN-LO Testing (from lorcon_lo/test.py)
-        wandb.init(project="Fusion", name="LoRCoNLO-Testing-0", config=config["lorcon_lo"])  # Initialize WandB for LoRCoN-LO testing
-
-        cuda = torch.device('cuda')
-        seq_sizes = {}
-        batch_size = config["lorcon_lo"]["batch_size"]
-        num_workers = config["num_workers"]
-
-        preprocessed_folder = config["lorcon_lo"]["preprocessed_folder"]
-        pose_folder = config["lorcon_lo"]["pose_folder"]
-        relative_pose_folder = config["lorcon_lo"]["relative_pose_folder"]
-        dataset = config["dataset"]
-        cp_folder = config["lorcon_lo"].get("cp_folder", "checkpoints")
-
-        data_seqs = config["lorcon_lo"]["data_seqs"].split(",")
-        test_seqs = config["lorcon_lo"]["test_seqs"].split(",")
-
-        rnn_size = config["lorcon_lo"]["rnn_size"]
-        image_width = config["lorcon_lo"]["image_width"]
-        image_height = config["lorcon_lo"]["image_height"]
-
-        depth_name = config["lorcon_lo"]["depth_name"]
-        intensity_name = config["lorcon_lo"]["intensity_name"]
-        normal_name = config["lorcon_lo"]["normal_name"]
-        dni_size = config["lorcon_lo"]["dni_size"]
-        normal_size = config["lorcon_lo"]["normal_size"]
-
-        # Use checkpoint_test_path for testing
-        checkpoint_test_path = config["lorcon_lo"]["checkpoint_test_path"]
-        checkpoint_path = os.path.join(cp_folder, dataset, checkpoint_test_path)
-
-        seq_sizes = count_seq_sizes(preprocessed_folder, data_seqs, seq_sizes)
-        Y_data = process_input_data(preprocessed_folder, relative_pose_folder, data_seqs, seq_sizes)
+# Function to convert relative poses to absolute poses (using yaw)
+def relative_to_absolute_poses(relative_poses):
+    # relative_poses: [N, 4] (translation [x, y, z], yaw [delta phi])
+    absolute_poses = []
+    current_pose = np.eye(4)  # Start at identity matrix (origin)
+    
+    for rel_pose in relative_poses:
+        trans = rel_pose[:3]
+        delta_phi = rel_pose[3]  # Yaw angle in radians
         
-        start_idx = 0
-        end_idx = 0
-        test_idx = np.array([], dtype=int)
-        for seq in data_seqs:
-            end_idx += seq_sizes[seq] - 1
-            test_idx = np.append(test_idx, np.arange(start_idx, end_idx - (rnn_size - 1), dtype=int))
-            start_idx += seq_sizes[seq] - 1
-
-        test_data = LoRCoNLODataset(preprocessed_folder, Y_data, test_idx, seq_sizes, rnn_size, image_width, image_height, depth_name, intensity_name, normal_name, dni_size, normal_size)
-        test_dataloader = DataLoader(test_data, num_workers=num_workers, batch_size=batch_size, shuffle=False)
-
-        model = LoRCoNLO(batch_size=batch_size, batchNorm=False).to(device)
-        criterion = WeightedLoss(learn_hyper_params=False)
-        optimizer = optim.Adagrad(model.parameters(), lr=0.0005)
-
-        checkpoint = torch.load(checkpoint_path)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-
-        Y_estimated_data = np.empty((0, 6), dtype=np.float64)
-        test_data_loader_len = len(test_dataloader)
-        test_loss = 0.0
-        rmse_error_test = 0.0
-        rmse_t_error_test = 0.0
-        rmse_r_error_test = 0.0
-        st_t = time.time()
-
-        with torch.no_grad():
-            for idx, data in tqdm(enumerate(test_dataloader), total=test_data_loader_len):
-                inputs, labels = data
-                inputs, labels = inputs.float().to(device), labels.float().to(device)
-                outputs = model(inputs)
-                Y_estimated_data = np.vstack((Y_estimated_data, outputs[:, -1, :].cpu().numpy()))
-                test_loss += criterion(outputs, labels).item()
-                rmse_error_test += WeightedLoss.RMSEError(outputs, labels).item()
-                rmse_t_error_test += WeightedLoss.RMSEError(outputs[:, :, :3], labels[:, :, :3]).item()
-                rmse_r_error_test += WeightedLoss.RMSEError(outputs[:, :, 3:], labels[:, :, 3:]).item()
-
-        avg_test_loss = test_loss / test_data_loader_len
-        avg_rmse_error_test = rmse_error_test / test_data_loader_len
-        avg_rmse_t_error_test = rmse_t_error_test / test_data_loader_len
-        avg_rmse_r_error_test = rmse_r_error_test / test_data_loader_len
-        predict_time = time.time() - st_t
-
-        print(f"Test loss is {avg_test_loss}")
-
-        Y_origin_data = get_original_poses(pose_folder, preprocessed_folder, data_seqs)
-        seq_sizes = {}
-        seq_sizes = count_seq_sizes(preprocessed_folder, data_seqs, seq_sizes)
+        # Convert yaw to rotation matrix (2D rotation around y-axis)
+        cos_phi = np.cos(delta_phi)
+        sin_phi = np.sin(delta_phi)
+        rot = np.array([
+            [cos_phi, 0, sin_phi],
+            [0, 1, 0],
+            [-sin_phi, 0, cos_phi]
+        ])
         
-        plot_gt(Y_origin_data, pose_folder, preprocessed_folder, data_seqs, seq_sizes, dataset=dataset)
-        plot_results(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
-        save_poses(Y_origin_data, Y_estimated_data, data_seqs, rnn_size, seq_sizes, dataset=dataset)
+        # Create transformation matrix
+        rel_transform = np.eye(4)
+        rel_transform[:3, :3] = rot
+        rel_transform[:3, 3] = trans
+        
+        # Update current pose
+        current_pose = current_pose @ rel_transform
+        absolute_pose = current_pose[:3, 3]  # Extract translation
+        absolute_poses.append(absolute_pose)
+    
+    return np.array(absolute_poses)
 
-        # Log metrics to WandB for LoRCoNLO
-        wandb.log({
-            "lorcon_lo/test_loss": avg_test_loss,
-            "lorcon_lo/test_rmse": avg_rmse_error_test,
-            "lorcon_lo/test_rmse_t": avg_rmse_t_error_test,
-            "lorcon_lo/test_rmse_r": avg_rmse_r_error_test,
-            "lorcon_lo/predict_time": predict_time,
-            "lorcon_lo/test_data_length": len(Y_estimated_data),
-            "lorcon_lo/GPU_usage": torch.cuda.memory_allocated() / 1e9
-        })
+# Function to load absolute ground truth poses directly from .npy file
+def load_absolute_gt_poses(pose_path):
+    # pose_path: Path to the pose file (e.g., poses_7dof/01.npy)
+    # Returns: A numpy array of size [N, 4, 4] with N poses as 4x4 transformation matrices
+    poses = np.load(pose_path)  # Shape: [N, 7] (x, y, z, w, x, y, z)
+    
+    # Convert to 4x4 transformation matrices
+    absolute_poses = []
+    for pose in poses:
+        trans = pose[:3]  # Translation (x, y, z)
+        quat = pose[3:]   # Quaternion (w, x, y, z)
+        
+        # Convert quaternion to rotation matrix
+        w, x, y, z = quat
+        rot = np.array([
+            [1 - 2*y*y - 2*z*z, 2*x*y - 2*z*w, 2*x*z + 2*y*w],
+            [2*x*y + 2*z*w, 1 - 2*x*x - 2*z*z, 2*y*z - 2*x*w],
+            [2*x*z - 2*y*w, 2*y*z + 2*x*w, 1 - 2*x*x - 2*y*y]
+        ])
+        
+        # Create 4x4 transformation matrix
+        transform = np.eye(4)
+        transform[:3, :3] = rot
+        transform[:3, 3] = trans
+        absolute_poses.append(transform)
+    
+    return np.array(absolute_poses)
 
-        wandb.finish()  # Close WandB session for LoRCoNLO
+# Custom collate function to handle None values
+def custom_collate_fn(batch):
+    batch = list(zip(*batch))
+    rgb_left = torch.stack(batch[0]) if batch[0][0] is not None else None
+    rgb_right = torch.stack(batch[1]) if batch[1][0] is not None else None
+    lidar_combined = torch.stack(batch[2]) if batch[2][0] is not None else None
+    targets = torch.stack(batch[3])
+    return rgb_left, rgb_right, lidar_combined, targets
 
-if __name__ == "__main__":
-    main()
+# Load configuration
+with open("/home/kavi/Fusion/config.yaml", "r") as f:
+    config = yaml.safe_load(f)
+
+# Device configuration
+device = torch.device(config["device"] if torch.cuda.is_available() else "cpu")
+
+# Initialize model
+model = FusionLIVO(config).to(device)
+model.load_state_dict(torch.load(config["fusion"]["model_path"], map_location=device))
+model.eval()
+
+# Test dataset (e.g., Sequence 01)
+test_sequence = ["01"]
+test_dataset = FusionDataset(
+    config,
+    seqs=test_sequence,
+    seq_len=config["fusion"]["rnn_size"],
+    use_augmentation=False
+)
+test_loader = DataLoader(
+    test_dataset,
+    batch_size=config["fusion"]["batch_size"],
+    shuffle=False,
+    num_workers=config["num_workers"],
+    drop_last=True,
+    collate_fn=custom_collate_fn
+)
+
+# Load absolute ground truth poses directly from file
+pose_path = os.path.join(config["deepvo"]["pose_dir"], f"{test_sequence[0]}.npy")
+gt_absolute_poses = load_absolute_gt_poses(pose_path)  # Shape: [N, 4, 4]
+
+# Lists to store all predictions and ground truth (relative poses)
+all_pred_poses = []
+all_gt_poses = []
+
+# Test loop
+print(f"Testing on sequence {test_sequence[0]}...")
+with torch.no_grad():
+    for batch in tqdm(test_loader, desc="Testing"):
+        rgb_left, rgb_right, lidar_combined, targets = batch
+        rgb_left = rgb_left.to(device) if rgb_left is not None else None
+        rgb_right = rgb_right.to(device) if rgb_right is not None else None
+        lidar_combined = lidar_combined.to(device) if lidar_combined is not None else None
+        targets = targets.to(device)
+
+        outputs = model(rgb_left, rgb_right, lidar_combined)
+        
+        if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+            raise ValueError("NaN or Inf detected in model outputs during testing")
+
+        all_pred_poses.append(outputs)
+        all_gt_poses.append(targets)
+
+# Concatenate all predictions and ground truth
+all_pred_poses = torch.cat(all_pred_poses, dim=0)  # Shape: [M, seq_len-1, 4]
+all_gt_poses = torch.cat(all_gt_poses, dim=0)      # Shape: [M, seq_len-1, 4]
+
+# Reshape to [N, 4] for relative_to_absolute_poses
+num_samples, seq_len_minus_1, pose_dim = all_pred_poses.shape
+all_pred_poses = all_pred_poses.view(-1, pose_dim)  # [M * (seq_len-1), 4]
+all_gt_poses = all_gt_poses.view(-1, pose_dim)      # [M * (seq_len-1), 4]
+
+# Compute metrics
+ate, rpe_trans, rpe_rot = compute_trajectory_metrics(
+    all_pred_poses.view(num_samples, seq_len_minus_1, pose_dim),
+    all_gt_poses.view(num_samples, seq_len_minus_1, pose_dim)
+)
+print(f"Test ATE: {ate:.4f} m, RPE Trans: {rpe_trans:.4f} m, RPE Rot: {rpe_rot:.4f} deg")
+
+# Convert predicted relative poses to absolute poses
+pred_absolute_poses = relative_to_absolute_poses(all_pred_poses.cpu().numpy())  # Shape: [M * (seq_len-1), 3]
+
+# Extract translations from absolute GT poses
+gt_translations = gt_absolute_poses[:, :3, 3]  # Shape: [N, 3]
+
+# Plot both trajectories on the same plot (x-z plane, top-down view)
+fig = plt.figure(figsize=(10, 10))
+plt.scatter(gt_translations[:, 0], gt_translations[:, 2], c=gt_translations[:, 2], s=20, alpha=0.5, cmap='viridis', label='Ground Truth')
+plt.scatter(pred_absolute_poses[:, 0], pred_absolute_poses[:, 2], c=pred_absolute_poses[:, 2], s=20, alpha=0.5, cmap='magma', label='Predicted')
+plt.xlabel('X (m)')
+plt.ylabel('Z (m)')
+plt.title(f'Trajectory Comparison - Sequence {test_sequence[0]}')
+plt.legend()
+plt.grid(True)
+plt.axis('equal')
+plt.savefig(f'trajectory_seq_{test_sequence[0]}.png')
+plt.show()
